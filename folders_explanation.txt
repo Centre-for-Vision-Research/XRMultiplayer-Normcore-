@@ -1,0 +1,765 @@
+This is the Assets folder structrue with short explanations
+│
+│
+│   VR Avatar Quest 1.prefab
+├───Audio [for interaction audio feedback]
+├───BlenderModels [just the models, technically could merge with the Models folder]
+│       MidSizeTable.fbx
+│       MidSizeTable.fbx.meta
+│       MidTablesTop.fbx
+│       MidTablesTop.fbx.meta
+│       Percept-Lab_2024_02_15.fbx
+│       Percept-Lab_2024_02_15.fbx.meta
+│       ShapeSortingCube-MeshCleaning_2024_02_26.fbx
+│       ShapeSortingCube-MeshCleaning_2024_02_26.fbx.meta
+│       ShapeSortingCubeClean_2024_02_15.fbx
+│       ShapeSortingCubeClean_2024_02_15.fbx.meta
+│
+├───Editor
+│       MeasureToolSettings.asset
+│       MeasureToolSettings.asset.meta
+│
+├───Images [Bunch of images that we used throughout the project, the grid is stil used]
+│
+├───Lighting [lighting settings tested, but not used]
+│
+├───Materials
+│   │   500_Materials.meta
+│   │   Avatar Material.mat
+│   │   Avatar Material.mat.meta
+│   │   Blue.mat
+│   │   Blue.mat.meta
+│   │   Green.mat
+│   │   Green.mat.meta
+│   │   Marbling.mat
+│   │   Marbling.mat.meta
+│   │   MeshTestMaterial.mat
+│   │   MeshTestMaterial.mat.meta
+│   │   mGround_1.mat
+│   │   mGround_1.mat.meta
+│   │   Opaque.meta
+│   │   Red.mat
+│   │   Red.mat.meta
+│   │   Shapes.mat
+│   │   Shapes.mat.meta
+│   │   Skyboxes.meta
+│   │   SlotMarker.mat
+│   │   SlotMarker.mat.meta
+│   │   SortingCubeMaterial.mat
+│   │   SortingCubeMaterial.mat.meta
+│   │   SortingCubeMaterialEdge.mat
+│   │   SortingCubeMaterialEdge.mat.meta
+│   │   SortingCubeMaterialInside.mat
+│   │   SortingCubeMaterialInside.mat.meta
+│   │   Transparent.meta
+│   │   UI.meta
+│   │   White.mat
+│   │   White.mat.meta
+│   │   Wood048_1K-PNG.meta
+│   │
+│   ├───500_Materials [downloaded materials for the shapes, some of these is being used for the shapes, table, floor]
+│   │
+│   ├───Opaque [materials in use]
+│   │       Black.mat
+│   │       Black.mat.meta
+│   │       CollidedSortingCubeMaterial.mat
+│   │       CollidedSortingCubeMaterial.mat.meta
+│   │       CurtainMaterial.mat
+│   │       CurtainMaterial.mat.meta
+│   │       Door.mat
+│   │       Door.mat.meta
+│   │       Floors.mat
+│   │       Floors.mat.meta
+│   │       GroundMaterial.mat
+│   │       GroundMaterial.mat.meta
+│   │       InnerCubeMaterial.mat
+│   │       InnerCubeMaterial.mat.meta
+│   │       LargeTableMat.mat
+│   │       LargeTableMat.mat.meta
+│   │       Pillars.mat
+│   │       Pillars.mat.meta
+│   │       Shapes.mat [experiment 2 shapes]
+│   │       Shapes.mat.meta
+│   │       Shelf.mat
+│   │       Shelf.mat.meta
+│   │       SortingCubeMaterial Variant 1.mat
+│   │       SortingCubeMaterial Variant 1.mat.meta
+│   │       SortingCubeMaterial Variant 2.mat
+│   │       SortingCubeMaterial Variant 2.mat.meta
+│   │       SortingCubeMaterial Variant 3.mat
+│   │       SortingCubeMaterial Variant 3.mat.meta
+│   │       SortingCubeMaterial Variant.mat
+│   │       SortingCubeMaterial Variant.mat.meta
+│   │       SortingCubeMaterial.mat
+│   │       SortingCubeMaterial.mat.meta
+│   │       TableMat.mat
+│   │       TableMat.mat.meta
+│   │       TableMaterial.mat
+│   │       TableMaterial.mat.meta
+│   │       Walls.mat
+│   │       Walls.mat.meta
+│   │       White.mat
+│   │       White.mat.meta
+│   │
+│   ├───Skyboxes [can delete]
+│   │       CustomSkybox.mat
+│   │       CustomSkybox.mat.meta
+│   │
+│   ├───Transparent [not used anymore]
+│   │       CalibrateTableMaterial.mat
+│   │       CalibrateTableMaterial.mat.meta
+│   │       PanelUIMaterial.mat
+│   │       PanelUIMaterial.mat.meta
+│   │       Partial Passthrough Purple.mat
+│   │       Partial Passthrough Purple.mat.meta
+│   │       Passthrough Black.mat
+│   │       Passthrough Black.mat.meta
+│   │       Passthrough Floors.mat
+│   │       Passthrough Floors.mat.meta
+│   │       PassThrough Pillars.mat
+│   │       PassThrough Pillars.mat.meta
+│   │       Passthrough Walls.mat
+│   │       Passthrough Walls.mat.meta
+│   │       Purple Variant.mat
+│   │       Purple Variant.mat.meta
+│   │
+│   ├───UI [for the former UI, not used anymore]
+│   │       UIMAT 1.mat
+│   │       UIMAT 1.mat.meta
+│   │       UIMAT.mat
+│   │       UIMAT.mat.meta
+│   │
+│   └───Wood048_1K-PNG [box in the begining, probably not used anymore]
+│       │   13763-ambientocclusion.jpg
+│       │   13763-ambientocclusion.jpg.meta
+│       │   Materials.meta
+│       │   Wood048_1K_Color.png
+│       │   Wood048_1K_Color.png.meta
+│       │   Wood048_1K_Displacement.png
+│       │   Wood048_1K_Displacement.png.meta
+│       │   Wood048_1K_NormalDX.png
+│       │   Wood048_1K_NormalDX.png.meta
+│       │   Wood048_1K_NormalGL.png
+│       │   Wood048_1K_NormalGL.png.meta
+│       │   Wood048_1K_Roughness.png
+│       │   Wood048_1K_Roughness.png.meta
+│       │
+│       └───Materials
+│               Wood048_1K_Color 1.mat
+│               Wood048_1K_Color 1.mat.meta
+│               Wood048_1K_Color.mat
+│               Wood048_1K_Color.mat.meta
+│
+├───Models [.fbx models of the room and objects]
+│   │
+│   ├───Complex Models [.fbx models of the cut objects for experiemtn 2]
+│   │
+│   ├───Materials [probably not used anymore]
+│   │       Marbling.mat
+│   │       Marbling.mat.meta
+│   │
+│   ├───Older [can delete?]
+│   │   │   Hexagon.fbx
+│   │   │   Hexagon.fbx.meta
+│   │   │   Octagon.fbx
+│   │   │   Octagon.fbx.meta
+│   │   │   Oval.fbx
+│   │   │   Oval.fbx.meta
+│   │   │   Parallelogram.fbx
+│   │   │   Parallelogram.fbx.meta
+│   │   │   Pentagon.fbx
+│   │   │   Pentagon.fbx.meta
+│   │   │   Percept-Lab_02_07_2024.fbx
+│   │   │   Percept-Lab_02_07_2024.fbx.meta
+│   │   │   Quaterfoil-Separated.fbx
+│   │   │   Quaterfoil-Separated.fbx.meta
+│   │   │   Rectangle.fbx
+│   │   │   Rectangle.fbx.meta
+│   │   │   Rhombus.fbx
+│   │   │   Rhombus.fbx.meta
+│   │   │   ShapeSortingCube 1.fbx
+│   │   │   ShapeSortingCube 1.fbx.meta
+│   │   │   ShapeSortingCubeClean_2024_02_15.fbx
+│   │   │   ShapeSortingCubeClean_2024_02_15.fbx.meta
+│   │   │   Square.fbx
+│   │   │   Square.fbx.meta
+│   │   │   Star-Separated.fbx
+│   │   │   Star-Separated.fbx.meta
+│   │   │   Trapezoid.fbx
+│   │   │   Trapezoid.fbx.meta
+│   │   │   Triangle.fbx
+│   │   │   Triangle.fbx.meta
+│   │   │   Wood.meta
+│   │   │
+│   │   └───Wood [bunch of wood textures, not used anymore]
+│   │           Wood_10_Albedo.png
+│   │           Wood_10_Albedo.png.meta
+│   │           Wood_10_Height.png
+│   │           Wood_10_Height.png.meta
+│   │           Wood_10_Metallic.png
+│   │           Wood_10_Metallic.png.meta
+│   │           Wood_10_Normal.png
+│   │           Wood_10_Normal.png.meta
+│   │           Wood_10_Occlusion.png
+│   │           Wood_10_Occlusion.png.meta
+│   │           Wood_1_Albedo.png
+│   │           Wood_1_Albedo.png.meta
+│   │           Wood_1_Height.png
+│   │           Wood_1_Height.png.meta
+│   │           Wood_1_Metallic.png
+│   │           Wood_1_Metallic.png.meta
+│   │           Wood_1_Normal.png
+│   │           Wood_1_Normal.png.meta
+│   │           Wood_1_Occlusion.png
+│   │           Wood_1_Occlusion.png.meta
+│   │           Wood_2_Albedo.png
+│   │           Wood_2_Albedo.png.meta
+│   │           Wood_2_Height.png
+│   │           Wood_2_Height.png.meta
+│   │           Wood_2_Metallic.png
+│   │           Wood_2_Metallic.png.meta
+│   │           Wood_2_Normal.png
+│   │           Wood_2_Normal.png.meta
+│   │           Wood_2_Occlusion.png
+│   │           Wood_2_Occlusion.png.meta
+│   │           Wood_3_Albedo.png
+│   │           Wood_3_Albedo.png.meta
+│   │           Wood_3_Height.png
+│   │           Wood_3_Height.png.meta
+│   │           Wood_3_Metallic.png
+│   │           Wood_3_Metallic.png.meta
+│   │           Wood_3_Normal.png
+│   │           Wood_3_Normal.png.meta
+│   │           Wood_3_Occlusion.png
+│   │           Wood_3_Occlusion.png.meta
+│   │           Wood_4_Albedo.png
+│   │           Wood_4_Albedo.png.meta
+│   │           Wood_4_Height.png
+│   │           Wood_4_Height.png.meta
+│   │           Wood_4_Metallic.png
+│   │           Wood_4_Metallic.png.meta
+│   │           Wood_4_Normal.png
+│   │           Wood_4_Normal.png.meta
+│   │           Wood_4_Occlusion.png
+│   │           Wood_4_Occlusion.png.meta
+│   │           Wood_5_Albedo.png
+│   │           Wood_5_Albedo.png.meta
+│   │           Wood_5_Height.png
+│   │           Wood_5_Height.png.meta
+│   │           Wood_5_Metallic.png
+│   │           Wood_5_Metallic.png.meta
+│   │           Wood_5_Normal.png
+│   │           Wood_5_Normal.png.meta
+│   │           Wood_5_Occlusion.png
+│   │           Wood_5_Occlusion.png.meta
+│   │           Wood_6_Albedo.png
+│   │           Wood_6_Albedo.png.meta
+│   │           Wood_6_Height.png
+│   │           Wood_6_Height.png.meta
+│   │           Wood_6_Metallic.png
+│   │           Wood_6_Metallic.png.meta
+│   │           Wood_6_Normal.png
+│   │           Wood_6_Normal.png.meta
+│   │           Wood_6_Occlusion.png
+│   │           Wood_6_Occlusion.png.meta
+│   │           Wood_7_Albedo.png
+│   │           Wood_7_Albedo.png.meta
+│   │           Wood_7_Height.png
+│   │           Wood_7_Height.png.meta
+│   │           Wood_7_Metallic.png
+│   │           Wood_7_Metallic.png.meta
+│   │           Wood_7_Normal.png
+│   │           Wood_7_Normal.png.meta
+│   │           Wood_7_Occlusion.png
+│   │           Wood_7_Occlusion.png.meta
+│   │           Wood_8_Albedo.png
+│   │           Wood_8_Albedo.png.meta
+│   │           Wood_8_Height.png
+│   │           Wood_8_Height.png.meta
+│   │           Wood_8_Metallic.png
+│   │           Wood_8_Metallic.png.meta
+│   │           Wood_8_Normal.png
+│   │           Wood_8_Normal.png.meta
+│   │           Wood_8_Occlusion.png
+│   │           Wood_8_Occlusion.png.meta
+│   │           Wood_9_Albedo.png
+│   │           Wood_9_Albedo.png.meta
+│   │           Wood_9_Height.png
+│   │           Wood_9_Height.png.meta
+│   │           Wood_9_Metallic.png
+│   │           Wood_9_Metallic.png.meta
+│   │           Wood_9_Normal.png
+│   │           Wood_9_Normal.png.meta
+│   │           Wood_9_Occlusion.png
+│   │           Wood_9_Occlusion.png.meta
+│   │
+│   ├───Older 1 [same as Older]
+│   │   │   Hexagon.fbx
+│   │   │   Hexagon.fbx.meta
+│   │   │   Octagon.fbx
+│   │   │   Octagon.fbx.meta
+│   │   │   Oval.fbx
+│   │   │   Oval.fbx.meta
+│   │   │   Parallelogram.fbx
+│   │   │   Parallelogram.fbx.meta
+│   │   │   Pentagon.fbx
+│   │   │   Pentagon.fbx.meta
+│   │   │   Percept-Lab_02_07_2024.fbx
+│   │   │   Percept-Lab_02_07_2024.fbx.meta
+│   │   │   Quaterfoil-Separated.fbx
+│   │   │   Quaterfoil-Separated.fbx.meta
+│   │   │   Rectangle.fbx
+│   │   │   Rectangle.fbx.meta
+│   │   │   Rhombus.fbx
+│   │   │   Rhombus.fbx.meta
+│   │   │   ShapeSortingCube 1.fbx
+│   │   │   ShapeSortingCube 1.fbx.meta
+│   │   │   ShapeSortingCubeClean_2024_02_15.fbx
+│   │   │   ShapeSortingCubeClean_2024_02_15.fbx.meta
+│   │   │   Square.fbx
+│   │   │   Square.fbx.meta
+│   │   │   Star-Separated.fbx
+│   │   │   Star-Separated.fbx.meta
+│   │   │   Trapezoid.fbx
+│   │   │   Trapezoid.fbx.meta
+│   │   │   Triangle.fbx
+│   │   │   Triangle.fbx.meta
+│   │   │   Wood.meta
+│   │   │
+│   │   └───Wood
+│   │           Wood_10_Albedo.png
+│   │           Wood_10_Albedo.png.meta
+│   │           Wood_10_Height.png
+│   │           Wood_10_Height.png.meta
+│   │           Wood_10_Metallic.png
+│   │           Wood_10_Metallic.png.meta
+│   │           Wood_10_Normal.png
+│   │           Wood_10_Normal.png.meta
+│   │           Wood_10_Occlusion.png
+│   │           Wood_10_Occlusion.png.meta
+│   │           Wood_1_Albedo.png
+│   │           Wood_1_Albedo.png.meta
+│   │           Wood_1_Height.png
+│   │           Wood_1_Height.png.meta
+│   │           Wood_1_Metallic.png
+│   │           Wood_1_Metallic.png.meta
+│   │           Wood_1_Normal.png
+│   │           Wood_1_Normal.png.meta
+│   │           Wood_1_Occlusion.png
+│   │           Wood_1_Occlusion.png.meta
+│   │           Wood_2_Albedo.png
+│   │           Wood_2_Albedo.png.meta
+│   │           Wood_2_Height.png
+│   │           Wood_2_Height.png.meta
+│   │           Wood_2_Metallic.png
+│   │           Wood_2_Metallic.png.meta
+│   │           Wood_2_Normal.png
+│   │           Wood_2_Normal.png.meta
+│   │           Wood_2_Occlusion.png
+│   │           Wood_2_Occlusion.png.meta
+│   │           Wood_3_Albedo.png
+│   │           Wood_3_Albedo.png.meta
+│   │           Wood_3_Height.png
+│   │           Wood_3_Height.png.meta
+│   │           Wood_3_Metallic.png
+│   │           Wood_3_Metallic.png.meta
+│   │           Wood_3_Normal.png
+│   │           Wood_3_Normal.png.meta
+│   │           Wood_3_Occlusion.png
+│   │           Wood_3_Occlusion.png.meta
+│   │           Wood_4_Albedo.png
+│   │           Wood_4_Albedo.png.meta
+│   │           Wood_4_Height.png
+│   │           Wood_4_Height.png.meta
+│   │           Wood_4_Metallic.png
+│   │           Wood_4_Metallic.png.meta
+│   │           Wood_4_Normal.png
+│   │           Wood_4_Normal.png.meta
+│   │           Wood_4_Occlusion.png
+│   │           Wood_4_Occlusion.png.meta
+│   │           Wood_5_Albedo.png
+│   │           Wood_5_Albedo.png.meta
+│   │           Wood_5_Height.png
+│   │           Wood_5_Height.png.meta
+│   │           Wood_5_Metallic.png
+│   │           Wood_5_Metallic.png.meta
+│   │           Wood_5_Normal.png
+│   │           Wood_5_Normal.png.meta
+│   │           Wood_5_Occlusion.png
+│   │           Wood_5_Occlusion.png.meta
+│   │           Wood_6_Albedo.png
+│   │           Wood_6_Albedo.png.meta
+│   │           Wood_6_Height.png
+│   │           Wood_6_Height.png.meta
+│   │           Wood_6_Metallic.png
+│   │           Wood_6_Metallic.png.meta
+│   │           Wood_6_Normal.png
+│   │           Wood_6_Normal.png.meta
+│   │           Wood_6_Occlusion.png
+│   │           Wood_6_Occlusion.png.meta
+│   │           Wood_7_Albedo.png
+│   │           Wood_7_Albedo.png.meta
+│   │           Wood_7_Height.png
+│   │           Wood_7_Height.png.meta
+│   │           Wood_7_Metallic.png
+│   │           Wood_7_Metallic.png.meta
+│   │           Wood_7_Normal.png
+│   │           Wood_7_Normal.png.meta
+│   │           Wood_7_Occlusion.png
+│   │           Wood_7_Occlusion.png.meta
+│   │           Wood_8_Albedo.png
+│   │           Wood_8_Albedo.png.meta
+│   │           Wood_8_Height.png
+│   │           Wood_8_Height.png.meta
+│   │           Wood_8_Metallic.png
+│   │           Wood_8_Metallic.png.meta
+│   │           Wood_8_Normal.png
+│   │           Wood_8_Normal.png.meta
+│   │           Wood_8_Occlusion.png
+│   │           Wood_8_Occlusion.png.meta
+│   │           Wood_9_Albedo.png
+│   │           Wood_9_Albedo.png.meta
+│   │           Wood_9_Height.png
+│   │           Wood_9_Height.png.meta
+│   │           Wood_9_Metallic.png
+│   │           Wood_9_Metallic.png.meta
+│   │           Wood_9_Normal.png
+│   │           Wood_9_Normal.png.meta
+│   │           Wood_9_Occlusion.png
+│   │           Wood_9_Occlusion.png.meta
+│   │
+│   └───Other [not used]
+│           ShapesCleanUp.fbx
+│           ShapesCleanUp.fbx.meta
+│
+├───MRTK.Generated
+│       MRTKSettings.asset
+│       MRTKSettings.asset.meta
+│
+├───Normal [For NormCore, has a pdf readme]
+│
+├───Normcore Settings [we don't touch this folder, you can]
+│       NormcoreDevAppSettings.asset
+│       NormcoreDevAppSettings.asset.meta
+│       NormcoreDevProjectSettings.asset
+│       NormcoreDevProjectSettings.asset.meta
+│
+├───Oculus Hands [a project Faruq found, has a bunch of pinch animations, you can use them with the XR Origin, but they are not used anymore]
+│
+├───Physics Material [Faruq HPTK physics testing; probably not used anymore]
+│       BoxMaterial.physicMaterial
+│       BoxMaterial.physicMaterial.meta
+│
+├───Prefabs [can delete the lighting , could probably get rid of this, becasue duplicates in Resources(Other)]
+│   │   General.meta
+│   │   Lighting.prefab
+│   │   Lighting.prefab.meta
+│   │   Lighting2.prefab
+│   │   Lighting2.prefab.meta
+│   │   New Lighting Settings.lighting
+│   │   New Lighting Settings.lighting.meta
+│   │   Origin.prefab
+│   │   Origin.prefab.meta
+│   │   UI.prefab
+│   │   UI.prefab.meta
+│   │
+│   └───General [the box and room with textures and materials that we are putting ont he scene]
+│           Percept-Lab.fbx
+│           Percept-Lab.fbx.meta
+│           PostingToy 1.prefab
+│           PostingToy 1.prefab.meta
+│           ShapeSortingCube .prefab
+│           ShapeSortingCube .prefab.meta
+│           ShapeSortingCubeClean.prefab
+│           ShapeSortingCubeClean.prefab.meta
+│           ShapeSortingCubeThick.prefab
+│           ShapeSortingCubeThick.prefab.meta
+│           SortingCubeWithColliders.prefab
+│           SortingCubeWithColliders.prefab.meta
+│
+├───Resources [ Objects that will be shared and manipulated in multiplayer, prefabs have the neccessary components for normcore]
+│   │   BackUp.meta
+│   │   Diamond.prefab
+│   │   Diamond.prefab.meta
+│   │   Hexagon.prefab
+│   │   Hexagon.prefab.meta
+│   │   LeftHand.prefab
+│   │   LeftHand.prefab.meta
+│   │   Octagon.prefab
+│   │   Octagon.prefab.meta
+│   │   Older.meta
+│   │   OriginRT.prefab
+│   │   OriginRT.prefab.meta
+│   │   Oval.prefab
+│   │   Oval.prefab.meta
+│   │   Parallelogram.prefab
+│   │   Parallelogram.prefab.meta
+│   │   Pentagon.prefab
+│   │   Pentagon.prefab.meta
+│   │   Quatrefoil-Separated.prefab
+│   │   Quatrefoil-Separated.prefab.meta
+│   │   Quatrefoil.prefab
+│   │   Quatrefoil.prefab.meta
+│   │   Rectangle.prefab
+│   │   Rectangle.prefab.meta
+│   │   RightHand.prefab
+│   │   RightHand.prefab.meta
+│   │   SortingCube-Separated.prefab
+│   │   SortingCube-Separated.prefab.meta
+│   │   SortingCube.prefab
+│   │   SortingCube.prefab.meta
+│   │   Square.prefab
+│   │   Square.prefab.meta
+│   │   Star-Separated.prefab
+│   │   Star-Separated.prefab.meta
+│   │   Star.prefab
+│   │   Star.prefab.meta
+│   │   Trapezoid.prefab
+│   │   Trapezoid.prefab.meta
+│   │   Triangle.prefab
+│   │   Triangle.prefab.meta
+│   │   VR Avatar Hololens.prefab
+│   │   VR Avatar Hololens.prefab.meta
+│   │   VR Avatar Quest.prefab
+│   │   VR Avatar Quest.prefab.meta
+│   │   VR Player Variant.prefab
+│   │   VR Player Variant.prefab.meta
+│   │   Z1.prefab
+│   │   Z1.prefab.meta
+│   │   Z2.prefab
+│   │   Z2.prefab.meta
+│   │   Z3.prefab
+│   │   Z3.prefab.meta
+│   │   Z4.prefab
+│   │   Z4.prefab.meta
+│   │   Z5.prefab
+│   │   Z5.prefab.meta
+│   │   Z6.prefab
+│   │   Z6.prefab.meta
+│   │   Z7.prefab
+│   │   Z7.prefab.meta
+│   │   Z8.prefab
+│   │   Z8.prefab.meta
+│   │
+│   ├───BackUp
+│   │
+│   └───Older
+│
+├───Resources(Other) [models used in experimetn2]
+│   │   Complex Shapes.meta
+│   │   Regular Shapes.meta
+│   │   ShapeSortingCube.meta
+│   │
+│   ├───Complex Shapes
+│   │       Pentagon_topBottomCut.prefab
+│   │       Pentagon_topBottomCut.prefab.meta
+│   │       Pentagon_topBottomCut_parallel.prefab
+│   │       Pentagon_topBottomCut_parallel.prefab.meta
+│   │       Pentagon_topCut_higher.prefab
+│   │       Pentagon_topCut_higher.prefab.meta
+│   │       Pentagon_topCut_lower.prefab
+│   │       Pentagon_topCut_lower.prefab.meta
+│   │       Quatrefoil_topBottomCut.prefab
+│   │       Quatrefoil_topBottomCut.prefab.meta
+│   │       Quatrefoil_topBottomCut_parallel.prefab
+│   │       Quatrefoil_topBottomCut_parallel.prefab.meta
+│   │       Quatrefoil_topCut_higher.prefab
+│   │       Quatrefoil_topCut_higher.prefab.meta
+│   │       Quatrefoil_topCut_lower.prefab
+│   │       Quatrefoil_topCut_lower.prefab.meta
+│   │       Square_topBottomCut.prefab
+│   │       Square_topBottomCut.prefab.meta
+│   │       Square_topBottomCut_parallel.prefab
+│   │       Square_topBottomCut_parallel.prefab.meta
+│   │       Square_topCut_higher.prefab
+│   │       Square_topCut_higher.prefab.meta
+│   │       Square_topCut_lower.prefab
+│   │       Square_topCut_lower.prefab.meta
+│   │       Triangle_topBottomCut.prefab
+│   │       Triangle_topBottomCut.prefab.meta
+│   │       Triangle_topBottomCut_parallel.prefab
+│   │       Triangle_topBottomCut_parallel.prefab.meta
+│   │       Triangle_topCut_higher.prefab
+│   │       Triangle_topCut_higher.prefab.meta
+│   │       Triangle_topCut_lower.prefab
+│   │       Triangle_topCut_lower.prefab.meta
+│   │       Triangle_topCut_lower1.prefab
+│   │       Triangle_topCut_lower1.prefab.meta
+│   │
+│   ├───Regular Shapes
+│   │       Diamond.prefab
+│   │       Diamond.prefab.meta
+│   │       Hexagon.prefab
+│   │       Hexagon.prefab.meta
+│   │       Octagon.prefab
+│   │       Octagon.prefab.meta
+│   │       Oval.prefab
+│   │       Oval.prefab.meta
+│   │       Parallelogram.prefab
+│   │       Parallelogram.prefab.meta
+│   │       Pentagon.prefab
+│   │       Pentagon.prefab.meta
+│   │       Quatrefoil-Separated.prefab
+│   │       Quatrefoil-Separated.prefab.meta
+│   │       Quatrefoil.prefab
+│   │       Quatrefoil.prefab.meta
+│   │       Rectangle.prefab
+│   │       Rectangle.prefab.meta
+│   │       Square.prefab
+│   │       Square.prefab.meta
+│   │       Star-Separated.prefab
+│   │       Star-Separated.prefab.meta
+│   │       Star.prefab
+│   │       Star.prefab.meta
+│   │       Trapezoid.prefab
+│   │       Trapezoid.prefab.meta
+│   │       Triangle.prefab
+│   │       Triangle.prefab.meta
+│   │
+│   └───ShapeSortingCube
+│           SortingCube-Separated.prefab
+│           SortingCube-Separated.prefab.meta
+│           SortingCube.prefab
+│           SortingCube.prefab.meta
+│
+├───Samples [package generated samples]
+│
+├───Scenes
+│   │   ExpRoom(Realtime).unity
+│   │   ExpRoom(Realtime).unity.meta
+│   │   ExpRoom.unity
+│   │   ExpRoom.unity.meta
+│   │   GraphicsRoom.unity
+│   │   GraphicsRoom.unity.meta
+│   │   LightingRoom.meta
+│   │   LobbyRoom.unity [main starting room for experiments single and multiplayer; it has calibration and experiment variables input; loads the next scene asynch by index]
+│   │   LobbyRoom.unity.meta
+│   │   MainRoom(Realtime)(Old).unity
+│   │   MainRoom(Realtime)(Old).unity.meta
+│   │   MainRoom(Realtime).unity
+│   │   MainRoom(Realtime).unity.meta
+│   │   MainRoom.unity
+│   │   MainRoom.unity.meta
+│   │   R-AR.unity
+│   │   R-AR.unity.meta
+│   │   R-VR.unity
+│   │   R-VR.unity.meta
+│   │   TestSceneForTestingOutIdeasAndStuff.unity
+│   │   TestSceneForTestingOutIdeasAndStuff.unity.meta
+│   │
+│   └───LightingRoom
+│           LightingData.asset
+│           LightingData.asset.meta
+│           ReflectionProbe-0.exr
+│           ReflectionProbe-0.exr.meta
+│
+├───Scripts
+│   │   AvatarInfoPub.cs
+│   │   AvatarSync.cs
+│   │   AvatarSyncModel.cs
+│   │   CallibrateRoom.cs
+│   │   CanvasControl.cs
+│   │   CollisionTrigger.cs
+│   │   DataManager.cs
+│   │   EnvObject.cs
+│   │   ExpController.cs
+│   │   FollowScript.cs
+│   │   HandSync.cs
+│   │   HandSyncImpl.cs
+│   │   HandSyncModel.cs
+│   │   LobbyController.cs
+│   │   NetworkPlayerManager.cs
+│   │   NewBehaviourScript.cs
+│   │   ObjectModel.cs
+│   │   ObjectModelImpl.cs
+│   │   PhysicsFollow.cs
+│   │   Puppet.cs
+│   │   RealtimeAvatarSyncImpl.cs
+│   │   RealtimeDataManager.cs
+│   │   RealtimeEnvObject.cs
+│   │   RealtimeExpController.cs
+│   │   RealtimeSceneHelper.cs
+│   │   SceneHelper.cs
+│   │
+│   └───Romina
+│           AlignControl.inputactions
+│           AlignTheWorld.cs
+│           GUIHandler.cs
+│           HandTrackingSimple.cs
+│           HolographicRemotingConnectionHandler.cs
+│           MatTester.cs
+│           NetworkManager.cs
+│           QuitDebug.cs
+│           RLogger.cs
+│           SharedInteractable.cs
+│           VisibilityControl.cs
+│
+├───Shaders [Romina created to check the mesh uv mappings]
+│       CheckerBoard.shader
+│       CheckerBoard.shader.meta
+│
+├───TextMesh Pro [has a documentation]
+│
+├───Textures [faruq's marbling experimentation; this fits the triangle perfectly but not other shapes. ]
+│       MarbleTexture.png
+│       MarbleTexture.png.meta
+│
+├───XR [not us]
+│   │   Loaders.meta
+│   │   Resources.meta
+│   │   Settings.meta
+│   │   Temp.meta
+│   │   UserSimulationSettings.meta
+│   │   XRGeneralSettingsPerBuildTarget.asset
+│   │   XRGeneralSettingsPerBuildTarget.asset.meta
+│   │
+│   ├───Loaders
+│   │       OculusLoader.asset
+│   │       OculusLoader.asset.meta
+│   │       OpenXRLoader.asset
+│   │       OpenXRLoader.asset.meta
+│   │       SimulationLoader.asset
+│   │       SimulationLoader.asset.meta
+│   │
+│   ├───Resources
+│   │       XRSimulationRuntimeSettings.asset
+│   │       XRSimulationRuntimeSettings.asset.meta
+│   │
+│   ├───Settings
+│   │       OculusSettings.asset
+│   │       OculusSettings.asset.meta
+│   │       OpenXR Editor Settings.asset
+│   │       OpenXR Editor Settings.asset.meta
+│   │       OpenXR Package Settings.asset
+│   │       OpenXR Package Settings.asset.meta
+│   │       XRSimulationSettings.asset
+│   │       XRSimulationSettings.asset.meta
+│   │
+│   ├───Temp
+│   │       XRSimulationPreferences.asset
+│   │       XRSimulationPreferences.asset.meta
+│   │       XRSimulationRuntimeSettings.asset
+│   │       XRSimulationRuntimeSettings.asset.meta
+│   │
+│   └───UserSimulationSettings
+│       │   Resources.meta
+│       │   SimulationEnvironmentAssetsManager.asset
+│       │   SimulationEnvironmentAssetsManager.asset.meta
+│       │
+│       └───Resources
+│               XRSimulationPreferences.asset
+│               XRSimulationPreferences.asset.meta
+│
+└───XRI [not us]
+    │   Settings.meta
+    │
+    └───Settings
+        │   Resources.meta
+        │   XRInteractionEditorSettings.asset
+        │   XRInteractionEditorSettings.asset.meta
+        │
+        └───Resources
+                InteractionLayerSettings.asset
+                InteractionLayerSettings.asset.meta
+                XRDeviceSimulatorSettings.asset
+                XRDeviceSimulatorSettings.asset.meta
