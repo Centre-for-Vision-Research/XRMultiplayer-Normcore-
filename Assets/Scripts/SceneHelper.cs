@@ -96,7 +96,7 @@ public class SceneHelper : MonoBehaviour
         _spawnTransform = new GameObject().transform;
         _spawnTransform.position = m_Room.transform.position + offset.position;//player related to the room's position
         _spawnTransform.eulerAngles = offset.eulerAngles; //tansform is the player's transform exactly where it was in the previous scene
-        _spawnTransform.RotateAround(m_Room.transform.position, Vector3.up, -offset.rotAbt.y);
+        _spawnTransform.RotateAround(m_Room.transform.position, Vector3.up, -offset.originRot.y);
         Debug.Log($"PlayerCenterReference {_spawnTransform.transform.position.ToString()} Room {m_Room.transform.position}");
     }
 

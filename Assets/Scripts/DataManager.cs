@@ -5,8 +5,15 @@ using System;
 using System.Text;
 using static EnvObject;
 
+/// <summary>
+/// DataManager, used to monitor and store data from: <br/>
+/// Player Avatars, GameObjects in the Scene and Experiment data entries
+/// </summary>
 public class DataManager : MonoBehaviour
 {
+    /// <summary>
+    /// Gameobjects in the scene to track or not
+    /// </summary>
     [SerializeField]
     HashSet<GameObject> _toTrack = new HashSet<GameObject>();
     /// <summary>
@@ -25,8 +32,8 @@ public class DataManager : MonoBehaviour
     [SerializeField]
     private float _timeInterval = 0.1f;
 
-    //heading for csv's
-    private readonly string OBJECT_HEADING = "Object,Owner,Time,XPos,Ypos,ZPos,XRot,YRot,ZRot,XScale,YScale,ZScale,Status,Trial\n";
+    //heading for .csv files
+    private readonly string OBJECTS_HEADING = "Object,Owner,Time,XPos,Ypos,ZPos,XRot,YRot,ZRot,XScale,YScale,ZScale,Status,Trial\n";
     private readonly string PLAYER_HEADING = "Bone,Time,XPos,YPos,ZPos,XRot,YRot,ZRot\n";
     private readonly string EXP_HEADING = "Trial,Shape,Size,Response,ResponseTime,Time";
 
@@ -36,7 +43,7 @@ public class DataManager : MonoBehaviour
     private string EXP_FILE_PATH = "";
     private Dictionary<int, string> PLAYER_FILE_PATH;
     private string OBJECT_FILE_PATH = "";
-    //temp files
+    //temp files, StringBuilders
     private static StringBuilder EXP_FILE_TEMP;
     private static Dictionary<int, StringBuilder> PLAYER_FILE_TEMP;
     private static StringBuilder OBJECT_FILE_TEMP;
@@ -69,6 +76,10 @@ public class DataManager : MonoBehaviour
         timeCounter += Time.deltaTime;
     }
 
+    /// <summary>
+    /// Add GameObject to list of objects tracked by DataManager
+    /// </summary>
+    /// <param name="g"></param>
     public void AddObjectTrack(GameObject g)
     {
         _updatingTrackedObjects = true;
@@ -76,6 +87,10 @@ public class DataManager : MonoBehaviour
         _updatingTrackedObjects = false;
     }
 
+    /// <summary>
+    /// Remove GameObject from list of objects tracked by DataManager
+    /// </summary>
+    /// <param name="g"></param>
     public void RemoveObjectTrack(GameObject g)
     {
         _updatingTrackedObjects = true;
@@ -83,6 +98,9 @@ public class DataManager : MonoBehaviour
         _updatingTrackedObjects = false;
     }
 
+    /// <summary>
+    /// Create .csv file to store data for tracked GameObjects
+    /// </summary>
     private void CreateObjectsFile()
     {
         if (!_canTrackObjects) return;
@@ -92,7 +110,7 @@ public class DataManager : MonoBehaviour
         OBJECT_FILE_PATH = $"{Application.persistentDataPath}/objectsData_{System.DateTime.Now.ToString("yyyy-MM-dd-HH_mm_ss")}.csv";//something to identify the participant
 
         OBJECT_FILE_TEMP = new StringBuilder();
-        OBJECT_FILE_TEMP.AppendLine(string.Join(SEPARATOR, OBJECT_HEADING));
+        OBJECT_FILE_TEMP.AppendLine(string.Join(SEPARATOR, OBJECTS_HEADING));
         //File.WriteAllText(OBJECT_FILE_PATH, _objectHeader);
 
         //Debug.Log($"Object File Path is: {OBJECT_FILE_PATH}");
@@ -101,6 +119,9 @@ public class DataManager : MonoBehaviour
         SaveObjectsFile();
     }
 
+    /// <summary>
+    /// Update data about tracked GameObjects
+    /// </summary>
     public void UpdateObjectFile()
     {
         if (!_canTrackObjects) return;
@@ -146,8 +167,8 @@ public class DataManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Call to save the file containing information about objects in the room
-    /// <para>NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES</para>
+    /// Call to save the file containing information about objects in the room <br/>
+    /// NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES
     /// </summary>
     private void SaveObjectsFile()
     {
@@ -173,7 +194,8 @@ public class DataManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Create a file to store skeleton data for player pID
+    /// Create a file to store skeleton data for player ID "pID" <br/>
+    /// Does nothing if file already exists
     /// </summary>
     public void CreatePlayerFile(int pID)
     {
@@ -192,6 +214,11 @@ public class DataManager : MonoBehaviour
         SavePlayerFile(pID);
     }
 
+    /// <summary>
+    /// Updates the player file based on the specified player ID "pID"
+    /// </summary>
+    /// <param name="pID"></param>
+    /// <param name="transform"></param>
     public void UpdatePlayerFile(int pID, Transform transform)
     {
         if (!CanUpdatePlayerFile(pID)) return;
@@ -203,6 +230,13 @@ public class DataManager : MonoBehaviour
         PLAYER_FILE_TEMP[pID].AppendLine(string.Join(SEPARATOR, update));
     }
 
+    /// <summary>
+    /// Updates the player file based on the specified player ID "pID"
+    /// </summary>
+    /// <param name="pID"></param>
+    /// <param name="name"></param>
+    /// <param name="pos"></param>
+    /// <param name="rot"></param>
     public void UpdatePlayerFile(int pID, string name, Vector3 pos, Vector3 rot)
     {
         if (!CanUpdatePlayerFile(pID)) return;
@@ -214,6 +248,12 @@ public class DataManager : MonoBehaviour
         PLAYER_FILE_TEMP[pID].AppendLine(string.Join(SEPARATOR, update));
     }
 
+    /// <summary>
+    /// Updates player file based on the specified player ID "pID"
+    /// </summary>
+    /// <param name="pID"></param>
+    /// <param name="pose"></param>
+    /// <param name="name"></param>
     public void UpdatePlayerFile(int pID, Pose pose, string name)
     {
         if (!CanUpdatePlayerFile(pID)) return;
@@ -226,8 +266,8 @@ public class DataManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Call to save the file related to a specific player "pID"
-    /// <para>NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES</para>
+    /// Call to save the file related to a specific player "pID" <br/>
+    /// NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES
     /// </summary>
     /// <param name="pID"></param>
     public void SavePlayerFile(int pID)
@@ -247,6 +287,9 @@ public class DataManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Save the file for all the player's in the scene
+    /// </summary>
     private void SaveAllPlayerFiles()
     {
         Debug.Log($"Saving all player files....");
@@ -259,6 +302,7 @@ public class DataManager : MonoBehaviour
     {
         if (!_canTrackPlayer) return false;
 
+        //only ID 0 and up is valid
         if (pID < 0) return false;
 
         if (PLAYER_FILE_PATH == null || !PLAYER_FILE_PATH.ContainsKey(pID)) return false;
@@ -278,6 +322,9 @@ public class DataManager : MonoBehaviour
         return PLAYER_FILE_PATH[pID];
     }
 
+    /// <summary>
+    /// Create file to store experiment data
+    /// </summary>
     public void CreateExpFile()
     {
         if(EXP_FILE_READY)
@@ -295,6 +342,10 @@ public class DataManager : MonoBehaviour
         EXP_FILE_READY = true;
     }
 
+    /// <summary>
+    /// Create file to store experiment data, adding extraInfo to the name of the file
+    /// </summary>
+    /// <param name="extraInfo"></param>
     public void CreateExpFile(string extraInfo)
     {
         if (EXP_FILE_READY)
@@ -312,6 +363,15 @@ public class DataManager : MonoBehaviour
         EXP_FILE_READY = true;
     }
 
+    /// <summary>
+    /// Update the player file with the given inputs
+    /// </summary>
+    /// <param name="trial"></param>
+    /// <param name="shape"></param>
+    /// <param name="size"></param>
+    /// <param name="response"></param>
+    /// <param name="responseTime"></param>
+    /// <param name="time"></param>
     public void UpdateExpFile(int trial, string shape, float size, string response, string responseTime, string time)
     {
         if (!EXP_FILE_READY) return;
@@ -327,8 +387,8 @@ public class DataManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Call to save the experiment file
-    /// <para>NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES</para>
+    /// Call to save the experiment file <br/>
+    /// NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES
     /// </summary>
     public void SaveExpFile()
     {
@@ -347,8 +407,8 @@ public class DataManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Call to save all the files monitored by the DataManager
-    /// <para>NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES</para>
+    /// Call to save all the files monitored by the DataManager <br/>
+    /// NOTE: ALL FILES MONITORED BY THE DATAMANAGER ARE ALREADY SET TO SAVE WHEN THE APPLICATION QUITS OR PAUSES
     /// </summary>
     public void SaveAllFiles()
     {
@@ -375,38 +435,5 @@ public class DataManager : MonoBehaviour
     private void OnDestroy()
     {
         SaveAllFiles();
-    }
-}
-
-public class PlayerEntry
-{
-
-}
-
-public class ObjectEntry
-{
-    public string ObjectName;
-    public int OwnerID;
-    public string Time;
-    public float XPos;
-    public float YPos;
-    public float ZPos;
-    public float XRot;
-    public float YRot;
-    public float ZRot;
-    public string Status;
-
-    public ObjectEntry(string objectName, int ownerID, string time, float xPos, float yPos, float zPos, float xRot, float yRot, float zRot, string status)
-    {
-        ObjectName = objectName;
-        OwnerID = ownerID;
-        Time = time;
-        XPos = xPos;
-        YPos = yPos;
-        ZPos = zPos;
-        XRot = xRot;
-        YRot = yRot;
-        ZRot = zRot;
-        Status = status;
     }
 }

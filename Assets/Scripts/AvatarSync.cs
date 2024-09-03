@@ -3,6 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// AvatarSync: Middleman used to sync the AvatarSyncModel information using Normcore
+/// </summary>
 [RequireComponent(typeof(RealtimeAvatarSyncImpl))]
 public class AvatarSync : RealtimeComponent<AvatarSyncModel>
 {
@@ -44,7 +47,7 @@ public class AvatarSync : RealtimeComponent<AvatarSyncModel>
     {
         if (model == null)
             return;
-        //Debug.Log($"Updating avatar data....{model.avatarData}");
+
         if (model.avatarData == "")
             return;
 
@@ -53,7 +56,6 @@ public class AvatarSync : RealtimeComponent<AvatarSyncModel>
 
     public void SetAvatarData(string value)
     {
-        //Debug.Log($"{gameObject}....Sending....{value}");
         model.avatarData = value;
     }
 }

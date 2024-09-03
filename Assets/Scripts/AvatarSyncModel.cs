@@ -2,6 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// AvatarSyncModel: Models the Realtime information being sent across using Normcore
+/// </summary>
 [RealtimeModel]
 public partial class AvatarSyncModel
 {

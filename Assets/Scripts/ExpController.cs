@@ -1,16 +1,16 @@
 ﻿using com.perceptlab.armultiplayer;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using TMPro;
 using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit;
-using static UnityEngine.ParticleSystem;
-using static UnityEngine.XR.Interaction.Toolkit.Inputs.Simulation.XRDeviceSimulator;
 
+/// <summary>
+/// ExpController, used to control the behaviour of the shape judgement <br/>
+/// Controls taking in user input, sending user input to DataManager, presenting input for trials, etc.
+/// </summary>
 public class ExpController : MonoBehaviour
 {
     /// <summary>
@@ -156,6 +156,9 @@ public class ExpController : MonoBehaviour
     /// </summary>
     [SerializeField]
     protected Vector3 m_ShapeRotAxis = new(0, 1, 0);
+    /// <summary>
+    /// Amplitude of oscilation of the object in the oscilating version of the experiment
+    /// </summary>
     [SerializeField]
     protected Vector3 m_OscilateAmpl = new(0, 90, 0); 
 
@@ -234,27 +237,61 @@ public class ExpController : MonoBehaviour
     protected readonly static bool DEFAULT_PAUSE_ROTATION = false;//default value o
 
     //soooo many flags.........lol
-    //when we're ready to start flag
+    /// <summary>
+    /// when we're ready to start flag
+    /// </summary>
     protected bool _ready = false;
 
-    //next trial loading flag
+    /// <summary>
+    /// next trial loading flag
+    /// </summary>
     protected bool _nextLoading = false;
 
-    //blank timer and flags
+    /// <summary>
+    /// blank timer, tracking how long we've seen dark/blank/nothing for
+    /// </summary>
     protected float _blankTimer = 0;
+    /// <summary>
+    /// whether the minimum amount of time to see nothing has passed
+    /// </summary>
     protected bool _minBlankLoading = false;
+    /// <summary>
+    /// whether the maximum amount of time to see nothing has passed
+    /// after this we move to seeing the next trial/stimuli
+    /// </summary>
     protected bool _maxBlankLoading = false;
 
-    //trial timer and flags
+    /// <summary>
+    /// trial timer, tracking how long a trial has been presented to participant for
+    /// </summary>
     protected float _trialTimer = 0;
+    /// <summary>
+    /// whether the minimum amount of time to be presented a trial has passed or not
+    /// </summary>
     protected bool _minTrialLoading = true;
+    /// <summary>
+    /// whether the maximum amount of time to be presented a trial has passed or not <br/>
+    /// after this we move to seeing blank, and blank timer starts
+    /// </summary>
     protected bool _maxTrialLoading = true;
 
-    //shape rotate timer, flags and variables
+    /// <summary>
+    /// shape rotate timer
+    /// </summary>
     protected float _rotateTimer = 0;
     protected bool _pauseRotation = DEFAULT_PAUSE_ROTATION;
+    /// <summary>
+    /// what direction to rotate the object/shape <br/>
+    /// by default, rotate in positive direction on the y-axis
+    /// </summary>
     protected Vector3 _rotateDir = new(0, 1, 0);
+    /// <summary>
+    /// Start rotation of the shape
+    /// </summary>
     protected Vector3 _spawnParentStartRot;
+    /// <summary>
+    /// Current rotation of the shape
+    /// </summary>
     protected Vector3 _spawnParentCurrRot = Vector3.zero;
     protected Vector3 _shapeStartRotation = new Vector3(90, -180, -90);
 
@@ -262,7 +299,13 @@ public class ExpController : MonoBehaviour
     protected bool _savingEntry = false;
     protected bool _savedEntry = false;
 
+    /// <summary>
+    /// Shape name to the rotation the box should have to see the corresponding slot
+    /// </summary>
     protected Dictionary<string, Vector3> _shapeToBoxRotation0;
+    /// <summary>
+    /// Shape name to the rotation the box should have to see the corresponding slot and have it face the participant
+    /// </summary>
     protected Dictionary<string, Vector3[]> _shapeToBoxRotation1;
 
     /// <summary>
@@ -280,7 +323,7 @@ public class ExpController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        //Initialize();
+
     }
 
     void FixedUpdate()
@@ -290,11 +333,9 @@ public class ExpController : MonoBehaviour
             _trialTimer += Time.deltaTime;
             if (_trialTimer > m_MinTrialTimeLimit)
             {
-                Debug.Log("Min Trial Time Complete");
                 _minTrialLoading = false;
                 if (_savedEntry)
                 {
-                    Debug.Log("Min Trial Time Complete...saved entry..moving to blank");
                     _maxTrialLoading = false;
                     _trialTimer = 0;
                     //see blank/nothing
@@ -307,7 +348,6 @@ public class ExpController : MonoBehaviour
 
             if(_trialTimer > m_MaxTrialTimeLimit)
             {
-                Debug.Log("Max Trial Time Complete");
                 _minTrialLoading = false;
                 _maxTrialLoading = false;
                 _trialTimer = 0;
@@ -324,14 +364,12 @@ public class ExpController : MonoBehaviour
             _blankTimer += Time.deltaTime;
             if (_blankTimer > m_MinBlankTimeLimit)
             {
-                Debug.Log("Min Blank Time Complete");
                 _minBlankLoading = false;
                 if (_savedEntry) NextTrial();
             }
 
             if (_blankTimer > m_MaxBlankTimeLimit)
             {
-                Debug.Log("Max Blank Time Complete");
                 _blankTimer = 0;
                 _minBlankLoading = false;
                 _maxBlankLoading = false;
@@ -375,11 +413,11 @@ public class ExpController : MonoBehaviour
         _playerTransform = m_PlayerCamera.transform;
 
         _ready = true;
-
-        //Start exp
-        //NextTrial();
     }
 
+    /// <summary>
+    /// Store the rotation of the box based on the shape and whether it should face the participant or not
+    /// </summary>
     protected void SetBoxRotations()
     {
         if (m_FacePlayer)
@@ -408,26 +446,6 @@ public class ExpController : MonoBehaviour
                     Debug.Log("SHAPE NAME NOT RECOGNIZED!!!");
                 }
             }
-            /*            _shapeToBoxRotation1 = new Dictionary<string, Vector3[]>
-                        {
-                            //set from trying it out with the box in teh editor and setting it here,
-                            //you'll have to do that again on your end if you want to change the values for whatever reason
-                            { "Trapezoid", new[] { Vector3.up, new Vector3(0, -90, 0) } },
-                            { "Oval", new[] { Vector3.up, new Vector3(0, -90, 0) } },
-                            { "Diamond", new[] { Vector3.up, new Vector3(0, -90, 0) } },
-
-                            { "Quatrefoil", new[] { Vector3.down, new Vector3(90, 0, 0) } },
-                            { "Square", new[] { Vector3.down, new Vector3(90, 0, 0) } },
-                            { "Triangle", new[] { Vector3.down, new Vector3(90, 0, 0) } },
-
-                            { "Octagon", new[] { Vector3.up, new Vector3(90, 0, 0) } },
-                            { "Parallelogram", new[] { Vector3.up, new Vector3(90, 0, 0) } },
-                            { "Star", new[] { Vector3.up, new Vector3(90, 0, 0) } },
-
-                            { "Hexagon", new[] { Vector3.up, new Vector3(0, 90, 0) } },
-                            { "Rectangle", new[] { Vector3.up, new Vector3(0, 90, 0) } },
-                            { "Pentagon", new[] { Vector3.up, new Vector3(0, 90, 0) } }
-                        };*/
         }
         else
         {
@@ -456,35 +474,14 @@ public class ExpController : MonoBehaviour
                     Debug.Log("SHAPE NAME NOT RECOGNIZED!!!");
                 }
             }
-            /*            _shapeToBoxRotation0 = new Dictionary<string, Vector3>
-                        {
-                            //without LookAt vector, euler angles is....new Vector3(0, 180, 0)
-                            { "Trapezoid", new Vector3(0, 180, 0) },
-                            { "Oval", new Vector3(0, 180, 0) },
-                            { "Diamond", new Vector3(0, 180, 0) },
-
-                            //new Vector3 (-90, 0, 90)
-                            { "Quatrefoil", new Vector3(-90, 0, 90) },
-                            { "Square", new Vector3(-90, 0, 90) },
-                            { "Triangle", new Vector3(-90, 0, 90) },
-
-                            //new Vector3 (0, -90, 0)
-                            { "Octagon", new Vector3(0, -90, 0) },
-                            { "Parallelogram", new Vector3(0, -90, 0) },
-                            { "Star", new Vector3(0, -90, 0) },
-
-                            //new Vector3(0, 0, 0)
-                            { "Hexagon", new Vector3(0, 0, 0) },
-                            { "Rectangle", new Vector3(0, 0, 0) },
-                            { "Pentagon", new Vector3(0, 0, 0) }
-                        };*/
         }
     }
 
+    /// <summary>
+    /// Set up for the next trial
+    /// </summary>
     protected void NextSetUp()
     {
-        //if (NextWait()) return;
-
         float xDiff = m_PlayerCamera.transform.position.x - m_ExpSetUp.transform.position.x;
         float yDiff = m_PlayerCamera.transform.position.y - m_ExpSetUp.transform.position.y;
         float zDiff = m_PlayerCamera.transform.position.z - m_ExpSetUp.transform.position.z;
@@ -508,29 +505,36 @@ public class ExpController : MonoBehaviour
         {
             m_SortingCube.LookAt(_playerTransform.position, _shapeToBoxRotation1[shape][0]);
             m_SortingCube.Rotate(_shapeToBoxRotation1[shape][1]);
-
-            //m_ShapeSpawn[loc].transform.LookAt(_playerTransform.position, Vector3.up);
         }
         else
         {
             m_SortingCube.eulerAngles = _shapeToBoxRotation0[shape];
-            //m_ShapeSpawn[loc].eulerAngles = new Vector3(90, 90, 0);
-            //m_ShapeSpawn[loc].eulerAngles = new Vector3(90, -90, 0);
-            //m_ShapeSpawn[loc].eulerAngles = new Vector3(90, -180, -180);
         }
     }
 
+    /// <summary>
+    /// Call to set the player/partcipant ID
+    /// </summary>
+    /// <param name="id"></param>
     public void SetPID(string id)
     {
         m_PID = id;
         Debug.Log($"set id to {id}");
     }
 
+    /// <summary>
+    /// Call to set the experiment type
+    /// </summary>
+    /// <param name="type"></param>
     public void SetExpType(int type)
     {
         expType = (ExpType)type;
     }
 
+    /// <summary>
+    /// Called in the set method or ExpType, so invoked whenever the experiment type changes <br/>
+    /// Sets variables based on the experiment type chosen
+    /// </summary>
     protected void ExpTypeChanged()
     {
         //Non Interact Simple, Non Interact Complex
@@ -539,8 +543,8 @@ public class ExpController : MonoBehaviour
             m_FacePlayer = false;
             m_RandomShapeLocation = false;
             m_CanGrabBox = false; m_CanGrabShapes = false;
-            m_MinBlankTimeLimit = 2;//3; 
-            m_MaxBlankTimeLimit = 300; m_MinTrialTimeLimit = 2.5f; m_MaxTrialTimeLimit = 2.5f;
+            m_MinBlankTimeLimit = 2; m_MaxBlankTimeLimit = 300;
+            m_MinTrialTimeLimit = 2.5f; m_MaxTrialTimeLimit = 2.5f;
             m_NumberSmaller = DEFAULT_NO_SMALLER; m_NumberLarger = DEFAULT_NO_LARGER; m_NumOfShapes = DEFAULT_NO_SHAPE;
 
             if (expType == ExpType.NonInteractiveSimple)
@@ -556,8 +560,8 @@ public class ExpController : MonoBehaviour
             m_FacePlayer = false;
             m_RandomShapeLocation = false;
             m_CanGrabBox = false; m_CanGrabShapes = true;
-            m_MinBlankTimeLimit = 2;//3;
-            m_MaxBlankTimeLimit = 300;m_MinTrialTimeLimit = 10f; m_MaxTrialTimeLimit = 10f;
+            m_MinBlankTimeLimit = 2; m_MaxBlankTimeLimit = 300;
+            m_MinTrialTimeLimit = 10f; m_MaxTrialTimeLimit = 10f;
             m_NumberSmaller = DEFAULT_NO_SMALLER; m_NumberLarger = DEFAULT_NO_LARGER; m_NumOfShapes = DEFAULT_NO_SHAPE;
 
             if (expType == ExpType.InteractiveSimple)
@@ -573,8 +577,8 @@ public class ExpController : MonoBehaviour
             m_FacePlayer = false;
             m_RandomShapeLocation = false;
             m_CanGrabBox = false; m_CanGrabShapes = false;
-            m_MinBlankTimeLimit = 2;//3;
-            m_MaxBlankTimeLimit = 300; m_MinTrialTimeLimit = 5f; m_MaxTrialTimeLimit = 10f;
+            m_MinBlankTimeLimit = 2; m_MaxBlankTimeLimit = 300; 
+            m_MinTrialTimeLimit = 5f; m_MaxTrialTimeLimit = 10f;
             m_NumberSmaller = DEFAULT_NO_SMALLER; m_NumberLarger = DEFAULT_NO_LARGER; m_NumOfShapes = DEFAULT_NO_SHAPE;
 
             m_Shapes = m_ComplexShapes;
@@ -594,47 +598,59 @@ public class ExpController : MonoBehaviour
     public void SetNumOfShapes(int num = int.MaxValue)
     {
         m_NumOfShapes = num > m_Shapes.Length ? m_Shapes.Length : num;
-        Debug.Log($"using {m_NumOfShapes} shapes");
     }
 
+    /// <summary>
+    /// Call to set the number of repeats for the experiment
+    /// </summary>
+    /// <param name="repeats"></param>
     public void SetRepeats(int repeats)
     {
         m_Repeats = repeats;
-        Debug.Log($"Set repeats to {repeats}");
     }
 
+    /// <summary>
+    /// Call to set the minimum difference in scale between different sizes
+    /// </summary>
+    /// <param name="diff"></param>
     public void SetScaleDiff(float diff)
     {
         m_ScaleDiff = diff;
-        Debug.Log($"set scale diff to {diff}");
     }
 
+    /// <summary>
+    /// Call to set the condition being run in this experiment
+    /// </summary>
+    /// <param name="cond"></param>
     public void SetCondition(string cond)
     {
         m_Condition = cond;
-        Debug.Log($"set condition to {cond}");
     }
 
+    /// <summary>
+    /// Returns a random location to place the shape out of the 5 different tables in the virtual percept room
+    /// </summary>
     private int randomShapeLoc
     {
         get
         {
             if (m_RandomShapeLocation)
             {
-                Debug.Log("Random Shape Location");
                 return UnityEngine.Random.Range(0, m_ShapeSpawn.Length);
             }
             else
             {
-                Debug.Log("Non Random Shape Location");
                 return 0;
             }
         }
     }
 
-    protected bool CreateExpOrder()
+    /// <summary>
+    /// Call to create the order of the experiment, doesnt create anything if the order already exists
+    /// </summary>
+    protected void CreateExpOrder()
     {
-        if (_order != null) return true;
+        if (_order != null) return;
 
         _order = new List<string>();
         string entry;
@@ -664,8 +680,6 @@ public class ExpController : MonoBehaviour
                 }
             }
         }
-
-        return true;
     }
 
     public List<string> GetOrder()
@@ -697,6 +711,9 @@ public class ExpController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Call to shuffle the experiment order
+    /// </summary>
     protected void ShuffleOrder()
     {
         for (int n = 0; n < _order.Count; n++)
@@ -707,26 +724,17 @@ public class ExpController : MonoBehaviour
             _order[i] = _order[n];
             _order[n] = temp;
         }
-        RLogger.Log("Order Shuffeled, the resuls is:");
-        for (int n = 0; n < _order.Count; n++)
-        {
-            RLogger.Log(_order[n]);
-        }
     }
 
     protected void SaveLargerResponse(InputAction.CallbackContext obj)
     {
         if (spawn != null) SaveEntry(LARGER_RESPONSE);
-        //jump ahead so we can move to the next trial
-        //_trialTimer = m_MinTrialTimeLimit;
         NextTrial();
     }
 
     protected void SaveSmallerResponse(InputAction.CallbackContext obj)
     {
         if (spawn != null) SaveEntry(SMALLER_RESPONSE);
-        //jump ahead so we can move to the next trial
-        //_trialTimer = m_MinTrialTimeLimit;
         NextTrial();
     }
 
@@ -742,11 +750,6 @@ public class ExpController : MonoBehaviour
     protected void CreateExpFile()
     {
         m_DataManager.CreateExpFile($"Exp{expType.ToSafeString()}_{m_PID}_{m_Condition}_{m_Repeats}Reps_{m_ScaleDiff}Range");
-        /*FILE_PATH = $"{Application.persistentDataPath}/ExpEntry_{System.DateTime.Now:yyyy-MM-dd-HH_mm_ss}.csv";
-        Debug.Log("fILE PATH IS: " + FILE_PATH);
-
-        FILE_TEMP = new StringBuilder();
-        FILE_TEMP.AppendLine(string.Join(SEPARATOR, HEADING));*/
     }
 
     /// <summary>
@@ -767,9 +770,7 @@ public class ExpController : MonoBehaviour
         _entryTime= DateTime.Now;
         TimeSpan diff = _entryTime - _dispTime;
         m_DataManager.UpdateExpFile(_nTrialNumber, shape, size, response, diff.ToString(), _entryTime.TimeOfDay.ToString());
-
-        /*string entry = $"{_nTrialNumber},{shape}, {size}, {response}";
-        FILE_TEMP.AppendLine(string.Join(SEPARATOR, entry));*/
+        
         _savedEntry = true;
         _savingEntry = false;
     }
@@ -787,8 +788,10 @@ public class ExpController : MonoBehaviour
     /// </summary>
     protected void NextTrial()
     {
+        //return if we have to wait
         if (NextWait()) return;
 
+        //close if we've gone through all trials
         if (_nTrialNumber >= _order.Count)
         {
 #if UNITY_EDITOR
@@ -801,7 +804,6 @@ public class ExpController : MonoBehaviour
             Application.Quit();
             return;
         }
-        Debug.Log($"Loading trial number {_nTrialNumber}");
 
         //set all related flags
         _nextLoading = true;
@@ -819,6 +821,7 @@ public class ExpController : MonoBehaviour
         //Set up experiment env
         NextSetUp();
 
+        //delete existing shape if it exists
         if (spawn != null)
         {
             m_DataManager.RemoveObjectTrack(spawn);
@@ -855,7 +858,6 @@ public class ExpController : MonoBehaviour
         int loc = int.Parse(trial.Split('|')[3]);
 
         spawn = Instantiate(m_Shapes[index], m_ShapeSpawn[loc].transform);
-        //spawn.name = $"{m_Shapes[index].name}_Trial{_nTrialNumber+1}";
         spawn.name = $"{m_Shapes[index].name}";
         InitShapeSpawn();
     }
@@ -874,6 +876,7 @@ public class ExpController : MonoBehaviour
         spawn.transform.localScale = new Vector3(spawn.transform.localScale.x * size,
             spawn.transform.localScale.y * 1,
             spawn.transform.localScale.z * size);
+
         if (m_FacePlayer)
         {
             spawn.transform.LookAt(_playerTransform.position, Vector3.up);
@@ -883,6 +886,7 @@ public class ExpController : MonoBehaviour
         {
             spawn.transform.eulerAngles = _shapeStartRotation;
         }
+
         if (spawn.TryGetComponent<Rigidbody>(out Rigidbody r))
         {
             r.mass = 1e+09f;

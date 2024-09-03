@@ -2,6 +2,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+/// <summary>
+/// CanvasControl, used to control the behaviour of a specific canvas it's attached to
+/// </summary>
 public class CanvasControl : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     [SerializeField] private TextMeshProUGUI m_Range;
@@ -18,28 +21,49 @@ public class CanvasControl : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
         UpdateRange();
     }
 
+    /// <summary>
+    /// Action to complete when pointing to the Canvas
+    /// </summary>
+    /// <param name="eventData"></param>
     public void OnPointerEnter(PointerEventData eventData)
     {
-        _room.SetMode(pointerRoomMode);//set to standby mode
+        //set to standby mode so we can't "Calibrate" the room when interacting with Canvas interface
+        _room.SetMode(pointerRoomMode);
     }
 
+    /// <summary>
+    /// Action to complete on pointer exit with the canvas
+    /// </summary>
+    /// <param name="eventData"></param>
     void IPointerExitHandler.OnPointerExit(PointerEventData eventData)
     {
-        _room.SetMode(defaultRoomMode);//set to default mode
+        //set to default mode
+        _room.SetMode(defaultRoomMode);
     }
 
+    /// <summary>
+    /// Increase range value
+    /// </summary>
     public void OnIncreaseRange()
     {
         _range += 0.5f;
         UpdateRange();
     }
 
+    /// <summary>
+    /// Decrease range value
+    /// </summary>
     public void OnDecreaseRange()
     {
         _range = (_range == 0) ? 0 : (_range - 0.5f);
         UpdateRange();
     }
 
+    /// <summary>
+    /// Add text to the end of a string on the interface <br/>
+    /// NOTE: Used for typing out the participant ID in the Shape Judgement Experiment
+    /// </summary>
+    /// <param name="v"></param>
     public void OnConcatText(string v)
     {
         string val = m_pID.text;
@@ -48,6 +72,10 @@ public class CanvasControl : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
         m_pID.text = val;
     }
 
+    /// <summary>
+    /// Remove from the end of a string on the interface <br/>
+    /// NOTE: Used for typing out the participant ID in the Shape Judgement Experiment
+    /// </summary>
     public void OnDeconcatText()
     {
         string val = m_pID.text;
@@ -62,6 +90,9 @@ public class CanvasControl : MonoBehaviour, IPointerEnterHandler, IPointerExitHa
 
     }
 
+    /// <summary>
+    /// Change "Range" text on the interface
+    /// </summary>
     private void UpdateRange()
     {
         m_Range.text = _range.ToString();

@@ -7,7 +7,14 @@ using UnityEngine.XR;
 using UnityEngine.XR.Hands;
 using Handedness = UnityEngine.XR.Hands.Handedness;
 using com.perceptlab.armultiplayer;
+using Unity.VisualScripting;
 
+/// <summary>
+///  AvatarInfoPub: Used to publish player "avatar" information for the relevant parties to subscribe to <br/>
+///  Also saves the information to the DataManager in the process. <br/>
+///  Note: This can later be changed to make it so DataManager subscribes to AvatarInfoPub and saves the data from that input for better implementation <br/>
+///  Used to publish player "avatar" information for the relevant parties to subscribe to
+/// </summary>
 public class AvatarInfoPub : MonoBehaviour
 {
     [SerializeField] private int m_PlayerID = -1;
@@ -18,11 +25,11 @@ public class AvatarInfoPub : MonoBehaviour
     [SerializeField] private Transform m_LeftControllerRoot;
     [SerializeField] private Transform m_RightControllerRoot;
     [SerializeField] private Transform m_CameraOffset;
+    /// <summary>
+    /// What device is this running on could either be MetaQuest, HoloLens, Other
+    /// </summary>
     [Header("ENUMS")]
     [SerializeField] private Devices m_Device;
-    
-    /*    [SerializeField] private Type m_Type;
-        [SerializeField] private HandMode m_HandMode;*/
 
     //Devices and Subsystems
     private InputDevice _leftControllerInput;
@@ -30,26 +37,21 @@ public class AvatarInfoPub : MonoBehaviour
     private InputDevice _centerEyeInput;
     private InputDevice _leftEyeInput;
     private InputDevice _rightEyeInput;
+    //XRHandSubsystem to get hand data from OpenXR
     private XRHandSubsystem _questHandSubsystem;
+    //HandsAggregatorSubsystem to get data from MRTK
     private HandsAggregatorSubsystem _holoHandSubsystem;
     private List<XRHandSubsystem> _subsystems = new();
 
     //Bool checks
-    private bool _localRootInit = false;
-    private bool _controllerInputInit = false;
-    private bool _eyeInputInit = false;
-    private bool _handSubsysInit = false;
+    private bool _initLocalRoot = false;
+    private bool _initControllerInput = false;
+    private bool _initEyeInput = false;
+    private bool _initHandSubsys = false;
 
     //private bool _controllerTracking = false;
     private bool _leftHandTracking = false;
     private bool _rightHandTracking = false;
-
-    //Transforms
-    //private Transform _localHeadRoot;
-    //private Transform _localLeftControllerRoot;
-    //private Transform _localRightControllerRoot;
-    //private Transform _cameraOffset;
-    //private Transform[] _joints = new Transform[26];
 
     //XR
     private XRHand _leftXRHand;
@@ -110,33 +112,12 @@ public class AvatarInfoPub : MonoBehaviour
 
     private void LocalRootInit()
     {
-/*        if (_localHeadRoot != null && _cameraOffset != null) return;
-
-        GameObject lhr = GameObject.FindWithTag(m_LocalHeadRootTag);
-        GameObject cO = GameObject.FindWithTag(m_CameraOffsetTag);
-
-        if (lhr)
-            _localHeadRoot = lhr.transform;
-        //else
-        //Debug.Log($"{this.gameObject.name}...Cant find {m_LocalRootTag}");
-
-        if (cO)
-            _cameraOffset = cO.transform;
-        //else
-        //Debug.Log($"{this.gameObject.name}...Cant find {m_CameraOffsetTag}");*/
-
-        _localRootInit = m_HeadRoot != null && m_LeftControllerRoot != null 
+        _initLocalRoot = m_HeadRoot != null && m_LeftControllerRoot != null 
             && m_RightControllerRoot != null && m_CameraOffset != null;
     }
 
     private void InitControllerInput()
     {
-/*        if (m_HandMode != HandMode.Controller && m_HandMode != HandMode.Both)
-        {
-            //Debug.Log($"{this.gameObject.name}...Controllers not supported");
-            return;
-        }*/
-
         if (_leftControllerInput == null || !_leftControllerInput.isValid)
         {
             _leftControllerInput = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
@@ -149,20 +130,7 @@ public class AvatarInfoPub : MonoBehaviour
             _rightHandedness = Handedness.Right;
         }
 
-/*        switch (m_Type)
-        {
-            case Type.LeftHand:
-
-                break;
-            case Type.RightHand:
-
-                break;
-            default:
-                //Debug.Log($"{this.gameObject.name}...Avatar Type set does not need controllers");
-                return;
-        }*/
-
-        _controllerInputInit = _leftControllerInput.isValid && _rightControllerInput.isValid;
+        _initControllerInput = _leftControllerInput.isValid && _rightControllerInput.isValid;
     }
 
     private void InitEyeInput()
@@ -182,7 +150,7 @@ public class AvatarInfoPub : MonoBehaviour
             _rightEyeInput = InputDevices.GetDeviceAtXRNode(XRNode.RightEye);
         }
 
-        _eyeInputInit = _centerEyeInput.isValid && _leftEyeInput.isValid && _rightEyeInput.isValid;
+        _initEyeInput = _centerEyeInput.isValid && _leftEyeInput.isValid && _rightEyeInput.isValid;
     }
 
 
@@ -197,7 +165,7 @@ public class AvatarInfoPub : MonoBehaviour
             SubsystemManager.GetSubsystems(_subsystems);
             if (_subsystems.Count == 0)
             {
-                _handSubsysInit = false;
+                _initHandSubsys = false;
                 return;
             }
 
@@ -212,62 +180,33 @@ public class AvatarInfoPub : MonoBehaviour
 
             SubSubsystem();
             InitQuestXRHand();
-            _handSubsysInit = true;
+            _initHandSubsys = true;
         }
         else if (m_Device == Devices.HoloLens)
         {
             _leftHandXRNode = XRNode.LeftHand;
             _rightHandXRNode = XRNode.RightHand;
 
-/*            switch (m_Type)
-            {
-                case Type.LeftHand:
-                    _xrNode = XRNode.LeftHand;
-                    break;
-                case Type.RightHand:
-                    _xrNode = XRNode.RightHand;
-                    break;
-                default:
-                    //Debug.Log($"{this.gameObject.name}...Avatar Type set does not need _xrNode");
-                    return;
-            }*/
-
             _holoHandSubsystem = XRSubsystemHelpers.GetFirstRunningSubsystem<HandsAggregatorSubsystem>();
-            _handSubsysInit = _holoHandSubsystem != null && _holoHandSubsystem.running;
-            //if(!_handSubsysInit) Debug.Log($"{this.gameObject.name}...HandSubsystem......failed to init hololens hand subsystem");
+            _initHandSubsys = _holoHandSubsystem != null && _holoHandSubsystem.running;
         }
         else
         {
-            //Debug.Log($"{this.gameObject.name}...HandSubsystem......device not supported");
-            _handSubsysInit = false;
+            Debug.Log($"{this.gameObject.name}...InitHandSubsystem...device not funcionality supported");
+            _initHandSubsys = false;
         }
-
     }
 
     private void InitQuestXRHand()
     {
         _leftXRHand = _questHandSubsystem.leftHand;
         _rightXRHand = _questHandSubsystem.rightHand;
-/*        switch (m_Type)
-        {
-            case Type.LeftHand:
-                _leftXRHand = _questHandSubsystem.leftHand;
-                break;
-            case Type.RightHand:
-                _rightXRHand = _questHandSubsystem.rightHand;
-                break;
-            default:
-                //Debug.Log($"{this.gameObject.name}...Avatar type does not need XRHand");
-                return;
-        }*/
     }
 
-    private bool ControllerTracking(Handedness hand)
+    private bool IsControllerTracking(Handedness hand)
     {
-        if (!_controllerInputInit)
+        if (!_initControllerInput)
         {
-            //Debug.Log($"{this.gameObject.name}...controller init {_controllerInit}");
-            //_controllerTracking = false;
             return false;
         }
 
@@ -282,21 +221,17 @@ public class AvatarInfoPub : MonoBehaviour
                 controllerDevice = UnityEngine.InputSystem.InputSystem.GetDevice<UnityEngine.InputSystem.XR.XRController>(UnityEngine.InputSystem.CommonUsages.RightHand);
                 break;
             default:
-                //Debug.Log($"{this.gameObject.name}...handedness not set");
+                Debug.Log($"{this.gameObject.name}...ControllerTracking...handedness not set");
                 break;
         }
-
-        //_controllerTracking = 
 
         return (controllerDevice != null);
     }
 
-    private bool HandTracking(Handedness hand)
+    private bool IsHandTracking(Handedness hand)
     {
-        if (!_handSubsysInit)
+        if (!_initHandSubsys)
         {
-            //Debug.Log($"{this.gameObject.name}...hand susbsysinit {_handSubsysInit}");
-            //_handTracking = false;
             return false;
         }
 
@@ -352,7 +287,7 @@ public class AvatarInfoPub : MonoBehaviour
         //initializing data to send
         string _dataToSend;
 
-        if (!_localRootInit)
+        if (!_initLocalRoot)
         {
             //Debug.Log($"{this.gameObject.name}...Local root not initialized....returning");
             //return;
@@ -402,10 +337,9 @@ public class AvatarInfoPub : MonoBehaviour
     {
         string send = $"{1}|{transform.position.x}|{transform.position.y}|{transform.position.z}|" +
             $"{transform.eulerAngles.x}|{transform.eulerAngles.y}|{transform.eulerAngles.z}|";
-        //Debug.Log($"Saving? {send}");
+
         if (m_SaveToDataManager)
         {
-            //Debug.Log($"Saving {send}");
             m_DataManager.UpdatePlayerFile(m_PlayerID, transform);
         }
             
@@ -415,9 +349,9 @@ public class AvatarInfoPub : MonoBehaviour
     private string PublishHandControllerData(XRHand xrHand, XRNode xrNode, InputDevice controllerInput, Transform controllerRoot, Handedness handedness)
     {
         string send = DEFAULTSEND;
-        if (HandTracking(handedness))
+        if (IsHandTracking(handedness))
         {
-            if (!_handSubsysInit)
+            if (!_initHandSubsys)
             {
                 InitHandSubsystem();
                 return send;
@@ -426,7 +360,7 @@ public class AvatarInfoPub : MonoBehaviour
             var cameraOffsetPose = new Pose(m_CameraOffset.position, m_CameraOffset.rotation);
             if (m_Device == Devices.MetaQuest)
             {
-                //because there are 26 joints
+                //loop through and concatenate pose data for the 26 joints
                 for (int j = 0; j < 26; j++)
                 {
                     if (!xrHand.GetJoint((XRHandJointID)(j + 1)).TryGetPose(out Pose jp))
@@ -437,23 +371,25 @@ public class AvatarInfoPub : MonoBehaviour
                     send += $"{jointPose.position.x}|{jointPose.position.y}|{jointPose.position.z}|" +
                         $"{jointPose.rotation.eulerAngles.x}|{jointPose.rotation.eulerAngles.y}|{jointPose.rotation.eulerAngles.z}|";
 
+                    //Save through DataManager if it exists in the scene
                     if(m_DataManager)
                         m_DataManager.UpdatePlayerFile(m_PlayerID, jointPose, string.Concat((XRHandJointID)(j + 1)));
                 }
             }
             else if (m_Device == Devices.HoloLens)
             {
-                //float error = 0.0f;
+                //loop through and concatenate data for the 26 joints
                 for (int j = 0; j < 26; j++)
                 {
                     if (!_holoHandSubsystem.TryGetJoint((TrackedHandJoint)j, xrNode, out HandJointPose hjp))
                         continue;
 
-                    Pose jointPose = hjp.Pose;//.GetTransformedBy(cameraOffsetPose);
+                    Pose jointPose = hjp.Pose;
 
                     send += $"{jointPose.position.x}|{jointPose.position.y}|{jointPose.position.z}|" +
                         $"{jointPose.rotation.eulerAngles.x}|{jointPose.rotation.eulerAngles.y}|{jointPose.rotation.eulerAngles.z}|";
 
+                    //Save through DataManager if it exists in the scene
                     if (m_DataManager)
                         m_DataManager.UpdatePlayerFile(m_PlayerID, jointPose, string.Concat((TrackedHandJoint)j));
                 }
@@ -463,15 +399,16 @@ public class AvatarInfoPub : MonoBehaviour
                 send = DEFAULTSEND;
             }
         }
-        else if (ControllerTracking(handedness))
+        else if (IsControllerTracking(handedness))
         {
-            if (!_controllerInputInit)
+            if (!_initControllerInput)
             {
                 InitControllerInput();
                 Debug.Log($"Controller Init Error");
                 return send;
             }
 
+            //Concatenate controller data
             send = $"{3}|{controllerRoot.position.x}|{controllerRoot.position.y}|{controllerRoot.position.z}|" +
                 $"{controllerRoot.eulerAngles.x}|{controllerRoot.eulerAngles.y}|{controllerRoot.eulerAngles.z}|";
 
@@ -499,10 +436,9 @@ public class AvatarInfoPub : MonoBehaviour
 
         string send = DEFAULTSEND;
 
-        if (!_eyeInputInit)
+        if (!_initEyeInput)
         {
             InitEyeInput();
-            //RLogger.Log($"Eye Init Error...{_leftEyeInput.isValid} {_centerEyeInput.isValid} {_rightEyeInput.isValid}");
             return send;
         }
 
@@ -543,7 +479,6 @@ public class AvatarInfoPub : MonoBehaviour
                 break;
         }
 
-        RLogger.Log($"Publishing EyeData....{xrEyeNode.ToString()}....{send}");
         return send;
     }
 
