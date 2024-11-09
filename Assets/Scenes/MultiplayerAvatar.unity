@@ -135,6 +135,7 @@ GameObject:
   - component: {fileID: 33968324}
   - component: {fileID: 33968323}
   - component: {fileID: 33968322}
+  - component: {fileID: 33968325}
   m_Layer: 0
   m_Name: Right Controller
   m_TagString: RightController
@@ -453,6 +454,24 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &33968325
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 33968320}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75d4b123c86a0cf48882eabfc58fac17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  directInteractor: {fileID: 1908953340}
+  handType: Right
+  positionOffset: {x: 0, y: 0, z: 0}
+  rotationOffset: {x: 0, y: 0, z: 0}
+  attachTransform: {fileID: 0}
+  handBone: {fileID: 0}
 --- !u!1001 &52460266
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2623,6 +2642,7 @@ GameObject:
   - component: {fileID: 389031719}
   - component: {fileID: 389031718}
   - component: {fileID: 389031717}
+  - component: {fileID: 389031720}
   m_Layer: 0
   m_Name: Left Controller
   m_TagString: LeftController
@@ -2663,7 +2683,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_GroupName: Left
-  m_InteractionManager: {fileID: 0}
+  m_InteractionManager: {fileID: 77091306}
   m_StartingGroupMembers:
   - {fileID: 1654101570}
   - {fileID: 824745825}
@@ -2941,6 +2961,24 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &389031720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 389031715}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75d4b123c86a0cf48882eabfc58fac17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  directInteractor: {fileID: 824745825}
+  handType: Left
+  positionOffset: {x: 0, y: 0, z: 0}
+  rotationOffset: {x: 0, y: 0, z: 0}
+  attachTransform: {fileID: 0}
+  handBone: {fileID: 0}
 --- !u!1001 &394160966
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6864,8 +6902,8 @@ CharacterController:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Height: 2
-  m_Radius: 0.5
+  m_Height: 0.5
+  m_Radius: 0.16
   m_SlopeLimit: 45
   m_StepOffset: 0.3
   m_SkinWidth: 0.08
@@ -7498,7 +7536,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_SelectActionTrigger: 1
-  m_HideControllerOnSelect: 0
+  m_HideControllerOnSelect: 1
   m_AllowHoveredActivate: 0
   m_TargetPriorityMode: 0
   m_PlayAudioClipOnSelectEntered: 0
@@ -16403,7 +16441,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4253f32900bcc4d499d675566142ded0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_InteractionManager: {fileID: 0}
+  m_InteractionManager: {fileID: 77091306}
   m_InteractionLayerMask:
     serializedVersion: 2
     m_Bits: 23
@@ -16441,7 +16479,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_SelectActionTrigger: 1
-  m_HideControllerOnSelect: 0
+  m_HideControllerOnSelect: 1
   m_AllowHoveredActivate: 0
   m_TargetPriorityMode: 0
   m_PlayAudioClipOnSelectEntered: 0
