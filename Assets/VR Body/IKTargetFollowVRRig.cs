@@ -29,8 +29,8 @@ public class IKTargetFollowVRRig : MonoBehaviour {
 
     private bool vrTargetsAssigned = false;
 
-    public Transform leftHandBone;  // Reference to the actual left hand bone
-    public Transform rightHandBone; // Reference to the actual right hand bone
+    public Transform LeftHandAttach;
+    public Transform RightHandAttach;
 
 
     void Update() {

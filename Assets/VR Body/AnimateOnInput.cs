@@ -1,86 +1,140 @@
-// AnimateOnInput.cs
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Normal.Realtime; // Ensure you have the correct namespace
+using Normal.Realtime;
 
-public class AnimateOnInput : RealtimeComponent<AnimateOnInputModel>
+[System.Serializable]
+public class AnimationInput
 {
-    [System.Serializable]
-    public class AnimationInput
+    public string animationPropertyName; // Parameter name in Animator
+    public InputActionProperty action;   // Input action for this parameter
+}
+
+public class AnimateOnInput : MonoBehaviour
+{
+    public List<AnimationInput> animationInputs; // List of input-to-parameter mappings
+    public Animator animator;                   // Animator reference
+
+    private NetworkedHandAnimator _networkedHandAnimator; // Synchronization component
+    private RealtimeView _realtimeView;                  // Realtime view for ownership check
+
+    private void Start()
     {
-        public string animationPropertyName;
-        public InputActionProperty action;
-    }
+        _networkedHandAnimator = GetComponent<NetworkedHandAnimator>();
+        _realtimeView = GetComponent<RealtimeView>();
 
-    public List<AnimationInput> animationInputs;
-    public Animator animator;
-
-    // Local cache to track changes and minimize network traffic
-    private Dictionary<string, float> lastValues = new Dictionary<string, float>();
-
-    protected override void OnRealtimeModelReplaced(AnimateOnInputModel previousModel, AnimateOnInputModel currentModel)
-    {
-        if (previousModel != null)
+        if (_realtimeView == null)
         {
-            previousModel.handAnimDidChange -= HandleHandAnimChanged;
-        }
-
-        if (currentModel != null)
-        {
-            currentModel.handAnimDidChange += HandleHandAnimChanged;
-
-            // Initialize the animator with the current value
-            animator.SetFloat("HandAnim", currentModel.handAnim);
-        }
-    }
-
-    void Start()
-    {
-        // Initialize lastValues
-        foreach (var item in animationInputs)
-        {
-            lastValues[item.animationPropertyName] = 0f;
+            Debug.LogError("AnimateOnInput requires a RealtimeView component on the same GameObject.");
         }
     }
 
     void Update()
     {
-        // Only update if this client owns the object
-        if (realtimeView.isOwnedLocallyInHierarchy)
+        if (_realtimeView != null && !_realtimeView.isOwnedLocally)
         {
-            foreach (var item in animationInputs)
+            return; // Skip if not owned locally
+        }
+
+        float leftPinch = 0f, leftGrab = 0f, rightPinch = 0f, rightGrab = 0f;
+
+        foreach (var item in animationInputs)
+        {
+            float actionValue = item.action.action.ReadValue<float>();
+
+            // Assign values based on the parameter names
+            switch (item.animationPropertyName)
             {
-                float actionValue = item.action.action.ReadValue<float>();
-                animator.SetFloat(item.animationPropertyName, actionValue);
-
-                // Check if the value has changed significantly to update the network
-                if (Mathf.Abs(actionValue - lastValues[item.animationPropertyName]) > 0.01f)
-                {
-                    lastValues[item.animationPropertyName] = actionValue;
-
-                    // Update the model to synchronize with other clients
-                    switch (item.animationPropertyName)
-                    {
-                        case "HandAnim":
-                            model.handAnim = actionValue;
-                            break;
-                        // Add cases for other properties if needed
-                    }
-                }
+                case "Left Pinch":
+                    leftPinch = actionValue;
+                    break;
+                case "Left Grab":
+                    leftGrab = actionValue;
+                    break;
+                case "Right Pinch":
+                    rightPinch = actionValue;
+                    break;
+                case "Right Grab":
+                    rightGrab = actionValue;
+                    break;
+                default:
+                    Debug.LogWarning($"Unknown animation property name: {item.animationPropertyName}");
+                    break;
             }
-        }
-    }
 
-    private void HandleHandAnimChanged(AnimateOnInputModel model, float value)
-    {
-        // Avoid updating the local animator if this client owns the object
-        if (!realtimeView.isOwnedLocallyInHierarchy)
-        {
-            animator.SetFloat("HandAnim", value);
+            // Directly update the local animator
+            animator.SetFloat(item.animationPropertyName, actionValue);
         }
+
+        // Send these values to the NetworkedHandAnimator for syncing across the network
+        _networkedHandAnimator.SetHandAnimationValues(leftPinch, leftGrab, rightPinch, rightGrab);
     }
 }
+
+
+
+
+// using System.Collections;
+// using System.Collections.Generic;
+// using UnityEngine;
+// using UnityEngine.InputSystem;
+// using Normal.Realtime;
+
+// [System.Serializable]
+// public class AnimationInput
+// {
+//     public string animationPropertyName;
+//     public InputActionProperty action;
+// }
+
+// public class AnimateOnInput : MonoBehaviour
+// {
+//     public List<AnimationInput> animationInputs;
+//     public Animator animator;
+
+//     private NetworkedHandAnimator _networkedHandAnimator;
+//     private RealtimeView _realtimeView;
+
+//     private void Start()
+//     {
+//         _networkedHandAnimator = GetComponent<NetworkedHandAnimator>();
+//         _realtimeView = GetComponent<RealtimeView>();
+
+//         if (_realtimeView == null)
+//         {
+//             Debug.LogError("AnimateOnInput requires a RealtimeView component on the same GameObject.");
+//         }
+//     }
+
+//     void Update()
+//     {
+//         if (_realtimeView != null && !_realtimeView.isOwnedLocally)
+//         {
+//             return;
+//         }
+//         float leftPinch = 0f, leftGrab = 0f, rightPinch = 0f, rightGrab = 0f;
+
+//         foreach (var item in animationInputs)
+//         {
+//             float actionValue = item.action.action.ReadValue<float>();
+//             //animator.SetFloat(item.animationPropertyName, actionValue);
+
+//             //Assign the value to the appropriate variable based on the parameter name
+//             if (item.animationPropertyName == "LeftPinch")
+//                 leftPinch = actionValue;
+//             else if (item.animationPropertyName == "LeftGrab")
+//                 leftGrab = actionValue;
+//             else if (item.animationPropertyName == "RightPinch")
+//                 rightPinch = actionValue;
+//             else if (item.animationPropertyName == "RightGrab")
+//                 rightGrab = actionValue;
+//         }
+
+//         // Send these values to the NetworkedHandAnimator for syncing
+//         _networkedHandAnimator.SetHandAnimationValues(leftPinch, leftGrab, rightPinch, rightGrab);
+//     }
+// }
+
 
 
 // using System.Collections;
