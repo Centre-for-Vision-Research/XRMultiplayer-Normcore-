@@ -16,6 +16,7 @@ TagManager:
   - BoxCollider
   - BoxTrigger
   - SlotMarkers
+  - AvatarHeadCulling
   layers:
   - Default
   - TransparentFX
@@ -23,7 +24,7 @@ TagManager:
   - Ground
   - Water
   - UI
-  - Avatar Head Culling
+  - LocalAvatarCulling
   - 
   - 
   - 

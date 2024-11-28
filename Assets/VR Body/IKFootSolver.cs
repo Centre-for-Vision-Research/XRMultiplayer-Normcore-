@@ -108,6 +108,4 @@ public class IKFootSolver : MonoBehaviour
         return lerp < 1;
     }
 
-
-
 }

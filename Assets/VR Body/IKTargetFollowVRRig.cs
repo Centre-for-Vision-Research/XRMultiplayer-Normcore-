@@ -1,8 +1,10 @@
 ﻿using UnityEngine;
+using Unity.XR.CoreUtils;
+using Normal.Realtime;
 
 [System.Serializable]
 public class VRMap {
-    public Transform vrTarget; // Will assign at runtime
+    public Transform vrTarget; // Assigned at runtime
     public Transform ikTarget; // Assigned in the prefab
     public Vector3 trackingPositionOffset;
     public Vector3 trackingRotationOffset;
@@ -24,24 +26,67 @@ public class IKTargetFollowVRRig : MonoBehaviour {
     public VRMap leftHand;
     public VRMap rightHand;
 
-    public Vector3 headBodyPositionOffset;
+    public Vector3 headBodyPositionOffset; // Editable in Inspector
     public float headBodyYawOffset;
+    public float avatarHeight = 1.7f; // Default height of the avatar
 
     private bool vrTargetsAssigned = false;
+    private bool calibrationDone = false;
 
-    public Transform LeftHandAttach;
-    public Transform RightHandAttach;
+    private XROrigin xrOrigin;
+    private float groundY; // y position of ground. we need to account for it if its not 0.
 
+    private RealtimeView realtimeView; // For Normcore ownership checks
+
+    void Start() {
+        // Get the RealtimeView component for ownership checks
+        realtimeView = GetComponent<RealtimeView>();
+        if (realtimeView == null) {
+            Debug.LogError("RealtimeView component not found! Please add it to the GameObject.");
+            return;
+        }
+
+        // Perform initialization only if this is the local player
+        if (!realtimeView.isOwnedLocally) {
+            return;
+        }
+
+        xrOrigin = FindObjectOfType<XROrigin>();
+        if (xrOrigin == null) {
+            Debug.LogError("XR Origin not found!");
+            return;
+        }
+
+        // Reset camera offset for local player
+        xrOrigin.CameraYOffset = 0f;
+
+        // Find ground Y position
+        GameObject floorObject = GameObject.FindGameObjectWithTag("Floor");
+        if (floorObject != null) {
+            groundY = floorObject.transform.position.y;
+        } else {
+            Debug.LogError("No GameObject with tag 'Floor' found! Defaulting groundY to 0.");
+        }
+
+        StartCalibration();
+    }
 
     void Update() {
-        // Attempt to assign vrTargets if not already assigned
-        if (!vrTargetsAssigned) {
+        // Only proceed if this is the local player
+        if (!realtimeView.isOwnedLocally)
+            return;
+
+        if (!vrTargetsAssigned && calibrationDone) {
             AssignVRTargets();
         }
     }
 
     void LateUpdate() {
-        if (!vrTargetsAssigned)
+        // Only proceed if this is the local player
+        if (!realtimeView.isOwnedLocally)
+            return;
+
+        if (!vrTargetsAssigned || !calibrationDone)
             return;
 
         transform.position = head.ikTarget.position + headBodyPositionOffset;
@@ -53,7 +98,37 @@ public class IKTargetFollowVRRig : MonoBehaviour {
         rightHand.Map();
     }
 
+    void StartCalibration() {
+        // Start calibration routine only for the local player
+        if (!realtimeView.isOwnedLocally)
+            return;
+
+        StartCoroutine(CalibrationRoutine());
+    }
+
+    System.Collections.IEnumerator CalibrationRoutine() {
+        Debug.Log("Starting calibration...");
+
+        // Wait for 1 second to stabilize VR camera position
+        yield return new WaitForSeconds(1f);
+
+        // Directly get the main camera's Y position
+        float userHeight = Camera.main.transform.position.y;
+
+        // Calculate the required offset
+        float requiredOffset = avatarHeight - (userHeight - groundY);
+        xrOrigin.CameraYOffset = requiredOffset;
+
+        Debug.Log($"Calibration complete: User Height = {userHeight}, Ground Y = {groundY}, Required Offset = {requiredOffset}, Final Camera Y Offset = {xrOrigin.CameraYOffset}");
+
+        calibrationDone = true;
+    }
+
     void AssignVRTargets() {
+        // Only assign VR targets for the local player
+        if (!realtimeView.isOwnedLocally)
+            return;
+
         GameObject headTarget = GameObject.Find("Head Camera Target");
         GameObject leftHandTarget = GameObject.Find("Left Cont Target");
         GameObject rightHandTarget = GameObject.Find("Right Cont Target");
@@ -63,33 +138,40 @@ public class IKTargetFollowVRRig : MonoBehaviour {
             leftHand.vrTarget = leftHandTarget.transform;
             rightHand.vrTarget = rightHandTarget.transform;
             vrTargetsAssigned = true;
+            Debug.Log("VR Targets successfully assigned.");
         }
     }
 }
 
 
 
-// V1: NON Multiplayer version
+
+
+
 // using UnityEngine;
+// using Unity.XR.CoreUtils;
+
 
 // [System.Serializable]
-// public class VRMap
-// {
-//     public Transform vrTarget;
-//     public Transform ikTarget;
+// public class VRMap {
+//     public Transform vrTarget; // Will assign at runtime
+//     public Transform ikTarget; // Assigned in the prefab
 //     public Vector3 trackingPositionOffset;
 //     public Vector3 trackingRotationOffset;
-//     public void Map()
-//     {
+
+//     public void Map() {
+//         if (vrTarget == null || ikTarget == null)
+//             return;
+
 //         ikTarget.position = vrTarget.TransformPoint(trackingPositionOffset);
 //         ikTarget.rotation = vrTarget.rotation * Quaternion.Euler(trackingRotationOffset);
 //     }
 // }
 
-// public class IKTargetFollowVRRig : MonoBehaviour
-// {
-//     [Range(0,1)]
+// public class IKTargetFollowVRRig : MonoBehaviour {
+//     [Range(0, 1)]
 //     public float turnSmoothness = 0.1f;
+
 //     public VRMap head;
 //     public VRMap leftHand;
 //     public VRMap rightHand;
@@ -97,15 +179,43 @@ public class IKTargetFollowVRRig : MonoBehaviour {
 //     public Vector3 headBodyPositionOffset;
 //     public float headBodyYawOffset;
 
-//     // Update is called once per frame
-//     void LateUpdate()
-//     {
-        // transform.position = head.ikTarget.position + headBodyPositionOffset;
-        // float yaw = head.vrTarget.eulerAngles.y;
-        // transform.rotation = Quaternion.Lerp(transform.rotation,Quaternion.Euler(transform.eulerAngles.x, yaw, transform.eulerAngles.z),turnSmoothness);
+//     private bool vrTargetsAssigned = false;
 
-        // head.Map();
-        // leftHand.Map();
-        // rightHand.Map();
+//     void Start() {
+
+//     }
+
+
+//     void Update() {
+//         // Attempt to assign vrTargets if not already assigned
+//         if (!vrTargetsAssigned) {
+//             AssignVRTargets();
+//         }
+//     }
+
+//     void LateUpdate() {
+//         if (!vrTargetsAssigned)
+//             return;
+
+//         transform.position = head.ikTarget.position + headBodyPositionOffset;
+//         float yaw = head.vrTarget.eulerAngles.y;
+//         transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(0, yaw, 0), turnSmoothness);
+
+//         head.Map();
+//         leftHand.Map();
+//         rightHand.Map();
+//     }
+
+//     void AssignVRTargets() {
+//         GameObject headTarget = GameObject.Find("Head Camera Target");
+//         GameObject leftHandTarget = GameObject.Find("Left Cont Target");
+//         GameObject rightHandTarget = GameObject.Find("Right Cont Target");
+
+//         if (headTarget != null && leftHandTarget != null && rightHandTarget != null) {
+//             head.vrTarget = headTarget.transform;
+//             leftHand.vrTarget = leftHandTarget.transform;
+//             rightHand.vrTarget = rightHandTarget.transform;
+//             vrTargetsAssigned = true;
+//         }
 //     }
 // }
