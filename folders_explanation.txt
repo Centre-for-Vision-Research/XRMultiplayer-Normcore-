@@ -57,7 +57,7 @@ This is the Assets folder structrue with short explanations
 │   │   White.mat.meta
 │   │   Wood048_1K-PNG.meta
 │   │
-│   ├───500_Materials [downloaded materials for the shapes, some of these is being used for the shapes, table, floor]
+│   ├───500_Materials [downloaded materials for the shapes, some of these are used for the shapes, table, floor]
 │   │
 │   ├───Opaque [materials in use]
 │   │       Black.mat
@@ -105,7 +105,7 @@ This is the Assets folder structrue with short explanations
 │   │       CustomSkybox.mat
 │   │       CustomSkybox.mat.meta
 │   │
-│   ├───Transparent [not used anymore]
+│   ├───Transparent [not used anymore, can delete]
 │   │       CalibrateTableMaterial.mat
 │   │       CalibrateTableMaterial.mat.meta
 │   │       PanelUIMaterial.mat
@@ -123,13 +123,13 @@ This is the Assets folder structrue with short explanations
 │   │       Purple Variant.mat
 │   │       Purple Variant.mat.meta
 │   │
-│   ├───UI [for the former UI, not used anymore]
+│   ├───UI [for the former UI, not used anymore, can delete]
 │   │       UIMAT 1.mat
 │   │       UIMAT 1.mat.meta
 │   │       UIMAT.mat
 │   │       UIMAT.mat.meta
 │   │
-│   └───Wood048_1K-PNG [box in the begining, probably not used anymore]
+│   └───Wood048_1K-PNG [box in the begining, probably not used anymore and can delete]
 │       │   13763-ambientocclusion.jpg
 │       │   13763-ambientocclusion.jpg.meta
 │       │   Materials.meta
@@ -438,7 +438,7 @@ This is the Assets folder structrue with short explanations
 │
 ├───Normal [For NormCore, has a pdf readme]
 │
-├───Normcore Settings [we don't touch this folder, you can]
+├───Normcore Settings [We don't touch this folder]
 │       NormcoreDevAppSettings.asset
 │       NormcoreDevAppSettings.asset.meta
 │       NormcoreDevProjectSettings.asset
@@ -477,7 +477,7 @@ This is the Assets folder structrue with short explanations
 │           SortingCubeWithColliders.prefab
 │           SortingCubeWithColliders.prefab.meta
 │
-├───Resources [ Objects that will be shared and manipulated in multiplayer, prefabs have the neccessary components for normcore]
+├───Resources [Objects that will be shared and manipulated in multiplayer, prefabs have the neccessary components for normcore]
 │   │   BackUp.meta
 │   │   Diamond.prefab
 │   │   Diamond.prefab.meta
@@ -545,7 +545,7 @@ This is the Assets folder structrue with short explanations
 │   │
 │   └───Older
 │
-├───Resources(Other) [models used in experimetn2]
+├───Resources(Other) [models used in experiment2]
 │   │   Complex Shapes.meta
 │   │   Regular Shapes.meta
 │   │   ShapeSortingCube.meta
