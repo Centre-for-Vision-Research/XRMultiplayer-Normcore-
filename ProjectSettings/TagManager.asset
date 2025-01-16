@@ -16,14 +16,15 @@ TagManager:
   - BoxCollider
   - BoxTrigger
   - SlotMarkers
+  - AvatarHeadCulling
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Ground
   - Water
   - UI
-  - 
+  - LocalAvatarCulling
   - 
   - 
   - 

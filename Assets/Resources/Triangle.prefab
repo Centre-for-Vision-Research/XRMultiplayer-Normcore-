@@ -382,7 +382,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tracking: 1
   _audioSource: {fileID: -8601028396614002697}
-  m_OwnerID: -1
+  _ownerID: 0
   m_RealtimeView: {fileID: 0}
 --- !u!82 &-8601028396614002697
 AudioSource:
