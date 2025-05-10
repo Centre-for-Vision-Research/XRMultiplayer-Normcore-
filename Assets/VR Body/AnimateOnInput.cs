@@ -31,7 +31,7 @@ public class AnimateOnInput : MonoBehaviour
 
     void Update()
     {
-        if (_realtimeView != null && !_realtimeView.isOwnedLocally)
+        if (_realtimeView != null && !_realtimeView.isOwnedLocallySelf)
         {
             return; // Skip if not owned locally
         }

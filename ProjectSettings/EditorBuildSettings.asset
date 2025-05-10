@@ -36,8 +36,17 @@ EditorBuildSettings:
     path: Assets/Samples/XR Interaction Toolkit/2.5.2/Starter Assets/DemoScene.unity
     guid: 319dafa5c80f29f428dc1e0d03f04177
   - enabled: 1
-    path: Assets/Scenes/MultiplayerAvatar.unity
-    guid: 86ea1f165d4396e43b3e191633b0e5ee
+    path: Assets/Scenes/LobbyAvtrs.unity
+    guid: 9a5f3917f8b8c114da30d81ea2b8cad1
+  - enabled: 1
+    path: Assets/Scenes/LowFidMultiplayerAvatar.unity
+    guid: ce613593685a8c644bbf206dac3289ae
+  - enabled: 1
+    path: Assets/Scenes/HighFidMultiplayerAvatar.unity
+    guid: 1ea339baac960024a9c07c979640251f
+  - enabled: 0
+    path: Assets/Scenes/AvatarsMainRoom.unity
+    guid: 363dc6799eb4f684790e537961e4a21a
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 4365ebcc117fcc54db940ee5b02674e1, type: 2}
     com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: d70f1d5f9ab9b3d45ae74c65999ce502, type: 2}

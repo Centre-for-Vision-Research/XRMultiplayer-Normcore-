@@ -47,7 +47,7 @@ public class IKTargetFollowVRRig : MonoBehaviour {
         }
 
         // Perform initialization only if this is the local player
-        if (!realtimeView.isOwnedLocally) {
+        if (!realtimeView.isOwnedLocallySelf) {
             return;
         }
 
@@ -73,7 +73,7 @@ public class IKTargetFollowVRRig : MonoBehaviour {
 
     void Update() {
         // Only proceed if this is the local player
-        if (!realtimeView.isOwnedLocally)
+        if (!realtimeView.isOwnedLocallySelf)
             return;
 
         if (!vrTargetsAssigned && calibrationDone) {
@@ -83,7 +83,7 @@ public class IKTargetFollowVRRig : MonoBehaviour {
 
     void LateUpdate() {
         // Only proceed if this is the local player
-        if (!realtimeView.isOwnedLocally)
+        if (!realtimeView.isOwnedLocallySelf)
             return;
 
         if (!vrTargetsAssigned || !calibrationDone)
@@ -100,14 +100,14 @@ public class IKTargetFollowVRRig : MonoBehaviour {
 
     void StartCalibration() {
         // Start calibration routine only for the local player
-        if (!realtimeView.isOwnedLocally)
+        if (!realtimeView.isOwnedLocallySelf)
             return;
 
         StartCoroutine(CalibrationRoutine());
     }
 
     System.Collections.IEnumerator CalibrationRoutine() {
-        Debug.Log("Starting calibration...");
+        //Debug.Log("Starting calibration...");
 
         // Wait for 1 second to stabilize VR camera position
         yield return new WaitForSeconds(1f);
@@ -119,14 +119,14 @@ public class IKTargetFollowVRRig : MonoBehaviour {
         float requiredOffset = avatarHeight - (userHeight - groundY);
         xrOrigin.CameraYOffset = requiredOffset;
 
-        Debug.Log($"Calibration complete: User Height = {userHeight}, Ground Y = {groundY}, Required Offset = {requiredOffset}, Final Camera Y Offset = {xrOrigin.CameraYOffset}");
+        //Debug.Log($"Calibration complete: User Height = {userHeight}, Ground Y = {groundY}, Required Offset = {requiredOffset}, Final Camera Y Offset = {xrOrigin.CameraYOffset}");
 
         calibrationDone = true;
     }
 
     void AssignVRTargets() {
         // Only assign VR targets for the local player
-        if (!realtimeView.isOwnedLocally)
+        if (!realtimeView.isOwnedLocallySelf)
             return;
 
         GameObject headTarget = GameObject.Find("Head Camera Target");
@@ -138,84 +138,7 @@ public class IKTargetFollowVRRig : MonoBehaviour {
             leftHand.vrTarget = leftHandTarget.transform;
             rightHand.vrTarget = rightHandTarget.transform;
             vrTargetsAssigned = true;
-            Debug.Log("VR Targets successfully assigned.");
+            //Debug.Log("VR Targets successfully assigned.");
         }
     }
 }
-
-
-
-
-
-
-// using UnityEngine;
-// using Unity.XR.CoreUtils;
-
-
-// [System.Serializable]
-// public class VRMap {
-//     public Transform vrTarget; // Will assign at runtime
-//     public Transform ikTarget; // Assigned in the prefab
-//     public Vector3 trackingPositionOffset;
-//     public Vector3 trackingRotationOffset;
-
-//     public void Map() {
-//         if (vrTarget == null || ikTarget == null)
-//             return;
-
-//         ikTarget.position = vrTarget.TransformPoint(trackingPositionOffset);
-//         ikTarget.rotation = vrTarget.rotation * Quaternion.Euler(trackingRotationOffset);
-//     }
-// }
-
-// public class IKTargetFollowVRRig : MonoBehaviour {
-//     [Range(0, 1)]
-//     public float turnSmoothness = 0.1f;
-
-//     public VRMap head;
-//     public VRMap leftHand;
-//     public VRMap rightHand;
-
-//     public Vector3 headBodyPositionOffset;
-//     public float headBodyYawOffset;
-
-//     private bool vrTargetsAssigned = false;
-
-//     void Start() {
-
-//     }
-
-
-//     void Update() {
-//         // Attempt to assign vrTargets if not already assigned
-//         if (!vrTargetsAssigned) {
-//             AssignVRTargets();
-//         }
-//     }
-
-//     void LateUpdate() {
-//         if (!vrTargetsAssigned)
-//             return;
-
-//         transform.position = head.ikTarget.position + headBodyPositionOffset;
-//         float yaw = head.vrTarget.eulerAngles.y;
-//         transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(0, yaw, 0), turnSmoothness);
-
-//         head.Map();
-//         leftHand.Map();
-//         rightHand.Map();
-//     }
-
-//     void AssignVRTargets() {
-//         GameObject headTarget = GameObject.Find("Head Camera Target");
-//         GameObject leftHandTarget = GameObject.Find("Left Cont Target");
-//         GameObject rightHandTarget = GameObject.Find("Right Cont Target");
-
-//         if (headTarget != null && leftHandTarget != null && rightHandTarget != null) {
-//             head.vrTarget = headTarget.transform;
-//             leftHand.vrTarget = leftHandTarget.transform;
-//             rightHand.vrTarget = rightHandTarget.transform;
-//             vrTargetsAssigned = true;
-//         }
-//     }
-// }

@@ -4586,9 +4586,11 @@ GameObject:
   - component: {fileID: 850149415205250124}
   - component: {fileID: 6834970255404020592}
   - component: {fileID: 3627649516697787207}
+  - component: {fileID: 5517808786115268595}
+  - component: {fileID: 3048008687399058938}
   m_Layer: 0
   m_Name: RPM Feminine Avatar 2
-  m_TagString: Untagged
+  m_TagString: PlayerAvatar
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -4781,12 +4783,12 @@ MonoBehaviour:
   leftHand:
     vrTarget: {fileID: 0}
     ikTarget: {fileID: 5085429702602285464}
-    trackingPositionOffset: {x: 0, y: 0, z: 0}
+    trackingPositionOffset: {x: 0, y: 0, z: -0.1}
     trackingRotationOffset: {x: 90, y: 0, z: 0}
   rightHand:
     vrTarget: {fileID: 0}
     ikTarget: {fileID: 1757721096118469480}
-    trackingPositionOffset: {x: 0, y: 0, z: 0}
+    trackingPositionOffset: {x: 0, y: 0, z: -0.1}
     trackingRotationOffset: {x: 90, y: 0, z: 0}
   headBodyPositionOffset: {x: 0, y: -1.62, z: 0}
   headBodyYawOffset: 0
@@ -5002,6 +5004,58 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   blinkDuration: 0.1
   blinkInterval: 3
+--- !u!114 &5517808786115268595
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8554659303597392603}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2777c48862fa11149ac1c0c7f7cc42c7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &3048008687399058938
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8554659303597392603}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 12ebaf0fabf5d9c40ab61933b952280e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  leftArm:
+    name: LeftArm
+    shoulder: {fileID: 568477018995066973}
+    upperArm: {fileID: 8540924800425616695}
+    lowerArm: {fileID: 7518922483016522952}
+    hand: {fileID: 2978417797189991754}
+    targetNameInScene: Left Cont Target
+    target: {fileID: 0}
+    defaultTotalLength: 0
+    currentStretchRatio: 1
+    stretchVelocity: 0
+  rightArm:
+    name: RightArm
+    shoulder: {fileID: 2724614111147346348}
+    upperArm: {fileID: 6934330677543579008}
+    lowerArm: {fileID: 8817342764509439073}
+    hand: {fileID: 6295699914826692113}
+    targetNameInScene: Right Cont Target
+    target: {fileID: 0}
+    defaultTotalLength: 0
+    currentStretchRatio: 1
+    stretchVelocity: 0
+  maxStretchFactor: 1.6
+  smoothTime: 0.08
+  wristToPalmOffset: 0.1
+  minDistanceToStretch: 0.02
+  lowerArmBias: 0.7
+  debugDraw: 0
 --- !u!1 &8620137295220760609
 GameObject:
   m_ObjectHideFlags: 0

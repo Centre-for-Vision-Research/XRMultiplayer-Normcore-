@@ -1,6 +1,7 @@
 using UnityEngine;
 using Normal.Realtime;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 public class CustomAvatarManager : MonoBehaviour {
     public Realtime realtime;
@@ -64,14 +65,23 @@ public class CustomAvatarManager : MonoBehaviour {
 
     private GameObject GetPrefabForClientID(int clientID) {
         if (avatarPrefabs.Count == 0)
-            return null; // No prefabs available
+            return null;
 
-        // Use clientID to determine which prefab to assign
+        // Use saved selection in high-fid scenes
+        if (SceneManager.GetActiveScene().name.Contains("HighFid")) {
+            int savedIndex = PlayerPrefs.GetInt("SelectedAvatarIndex", 0); // Default to 0 if not set
+            if (savedIndex >= 0 && savedIndex < avatarPrefabs.Count) {
+                return avatarPrefabs[savedIndex];
+            } else {
+                Debug.LogWarning("⚠️ Saved index out of range, falling back to clientID-based assignment.");
+            }
+        }
+
+        // Low-fid fallback or invalid index
         int prefabIndex = clientID % avatarPrefabs.Count;
-
-        // Return the selected prefab
         return avatarPrefabs[prefabIndex];
     }
+
 
     private void RequestOwnershipOfAvatarAndChildren(RealtimeView realtimeView) {
         // Request ownership of the RealtimeView
@@ -118,6 +128,28 @@ public class CustomAvatarManager : MonoBehaviour {
         return new Vector3(playerID * spacing, 0, 0);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -386,6 +418,18 @@ public class CustomAvatarManager : MonoBehaviour {
 //         return new Vector3(playerID * spacing, 0, 0);
 //     }
 // }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

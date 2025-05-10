@@ -59,7 +59,7 @@ public class NetworkedHandAnimator : RealtimeComponent<RealtimeHandsAnimationsMo
 
     public void SetHandAnimationValues(float leftPinch, float leftGrab, float rightPinch, float rightGrab)
     {
-        if (model != null && realtimeView.isOwnedLocally)
+        if (model != null && realtimeView.isOwnedLocallySelf)
         {
             model.leftPinch = leftPinch;
             model.leftGrab = leftGrab;

@@ -34,7 +34,7 @@ public class LocalAvatarHeadVisibility : MonoBehaviour
         }
 
         // Check if this avatar is owned by the local player
-        if (realtimeView.isOwnedLocally)
+        if (realtimeView.isOwnedLocallySelf)
         {
             AssignCullingLayer();
         }
@@ -50,7 +50,7 @@ public class LocalAvatarHeadVisibility : MonoBehaviour
             {
                 // Assign the culling layer to the renderer's GameObject
                 renderer.gameObject.layer = cullingLayer;
-                Debug.Log($"Assigned {renderer.gameObject.name} to layer {cullingLayerName}.");
+                //Debug.Log($"Assigned {renderer.gameObject.name} to layer {cullingLayerName}.");
             }
         }
     }
