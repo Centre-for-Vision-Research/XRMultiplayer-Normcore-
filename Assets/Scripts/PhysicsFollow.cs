@@ -23,7 +23,7 @@ public class PhysicsFollow : MonoBehaviour
         else
         {
             var vel = (trackedTransform.position - body.position).normalized * positionStrength * distance;
-            body.velocity = vel;
+            body.linearVelocity = vel;
         }
 
         float angleDistance = Quaternion.Angle(body.rotation, trackedTransform.rotation);

@@ -1,13 +1,13 @@
 using UnityEngine;
-using UnityEngine.XR.Interaction.Toolkit;
+
 using Normal.Realtime;
 using UnityEngine.SceneManagement;
 
 public class RoleBasedSettings : MonoBehaviour {
     private Realtime realtime;
     private RealtimeView realtimeView;
-    private XRDirectInteractor leftDirectInteractor;
-    private XRDirectInteractor rightDirectInteractor;
+    private UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor leftDirectInteractor;
+    private UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor rightDirectInteractor;
     string sceneName;
 
     private bool applied = false;
@@ -27,8 +27,8 @@ public class RoleBasedSettings : MonoBehaviour {
         bool isTeacher = RoleManager.Instance.IsTeacher(realtime.clientID);
 
         // Disable grabbing if this avatar is the teacher
-        leftDirectInteractor = FindInteractorGameObjectByName("Left Direct Interactor")?.GetComponent<XRDirectInteractor>();
-        rightDirectInteractor = FindInteractorGameObjectByName("Right Direct Interactor")?.GetComponent<XRDirectInteractor>();
+        leftDirectInteractor = FindInteractorGameObjectByName("Left Direct Interactor")?.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor>();
+        rightDirectInteractor = FindInteractorGameObjectByName("Right Direct Interactor")?.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor>();
 
         if (isTeacher && !sceneName.Contains("tutorial")) {
             if (leftDirectInteractor != null) leftDirectInteractor.enabled = false;

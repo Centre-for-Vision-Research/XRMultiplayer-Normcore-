@@ -80,7 +80,7 @@ public class EnvObject : MonoBehaviour
     private StatusWRTBox _statusWRTBox = StatusWRTBox.OutsideBox;
 
     private Rigidbody _rigidbody;
-    private XRGrabInteractable _grabInteractable;
+    private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable _grabInteractable;
 
     /// <summary>
     /// DataManager in the scene
@@ -90,7 +90,7 @@ public class EnvObject : MonoBehaviour
     public virtual void OnEnable()
     {
         _dataManager = FindAnyObjectByType<DataManager>();
-        _grabInteractable = GetComponent<XRGrabInteractable>();
+        _grabInteractable = GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
         _rigidbody = GetComponent<Rigidbody>();
     }
 
@@ -181,8 +181,8 @@ public class EnvObject : MonoBehaviour
     {
         _rigidbody.constraints = RigidbodyConstraints.None;
         _audioSource.Play();
-        _rigidbody.drag = 0;
-        _rigidbody.angularDrag = 0.05f;
+        _rigidbody.linearDamping = 0;
+        _rigidbody.angularDamping = 0.05f;
     }
 
     /// <summary>
@@ -192,8 +192,8 @@ public class EnvObject : MonoBehaviour
     public virtual void OnRelease(SelectExitEventArgs args)
     {
         _rigidbody.constraints = RigidbodyConstraints.None;
-        _rigidbody.drag = 0;
-        _rigidbody.angularDrag = 0.05f;
+        _rigidbody.linearDamping = 0;
+        _rigidbody.angularDamping = 0.05f;
     }
 
     /// <summary>
@@ -204,7 +204,7 @@ public class EnvObject : MonoBehaviour
         //return to initial position and rotation
         transform.SetPositionAndRotation(_initPosition, _initRotation);
         
-        _rigidbody.velocity = Vector3.zero; //so it doesn't keep moving with it's current velocity
+        _rigidbody.linearVelocity = Vector3.zero; //so it doesn't keep moving with it's current velocity
         _rigidbody.angularVelocity = Vector3.zero;
 
         //so we release the grab even after reseting position

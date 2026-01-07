@@ -5,7 +5,7 @@ using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.XR.Interaction.Toolkit;
+
 
 /// <summary>
 /// ExpController, used to control the behaviour of the shape judgement <br/>
@@ -493,7 +493,7 @@ public class ExpController : MonoBehaviour
 
         m_SortingCube.position = m_CubeSpawn.position;
 
-        if(m_SortingCube.TryGetComponent<XRGrabInteractable>(out XRGrabInteractable g))
+        if(m_SortingCube.TryGetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>(out UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable g))
         {
             g.enabled = m_CanGrabBox;
         }
@@ -891,11 +891,11 @@ public class ExpController : MonoBehaviour
         {
             r.mass = 1e+09f;
             r.constraints = RigidbodyConstraints.FreezeRotation;
-            r.drag = 1000;
-            r.angularDrag = 0;
+            r.linearDamping = 1000;
+            r.angularDamping = 0;
         }
 
-        if (spawn.TryGetComponent<XRGrabInteractable>(out XRGrabInteractable g))
+        if (spawn.TryGetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>(out UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable g))
         {
             g.enabled = m_CanGrabShapes;
         }

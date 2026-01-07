@@ -120,9 +120,9 @@ namespace ReadyPlayerMe.Core.Editor
 
         private static RenderPipeline GetCurrentRenderPipeline()
         {
-            if (GraphicsSettings.renderPipelineAsset != null)
+            if (GraphicsSettings.defaultRenderPipeline != null)
             {
-                var renderPipelineType = GraphicsSettings.renderPipelineAsset.GetType().ToString();
+                var renderPipelineType = GraphicsSettings.defaultRenderPipeline.GetType().ToString();
                 if (renderPipelineType.Contains(HDRP_TYPE_NAME))
                 {
                     return RenderPipeline.HDRP;

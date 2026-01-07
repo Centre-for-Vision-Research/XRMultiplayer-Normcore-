@@ -20,7 +20,6 @@ namespace UMA
         /// The asset we want to apply mesh hiding to if found in the generated UMA.
         /// </summary>
         /// <value>The SlotDataAsset.</value>
-        [SerializeField]
         public SlotDataAsset asset
         {
             get

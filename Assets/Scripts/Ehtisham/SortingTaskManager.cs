@@ -1,9 +1,10 @@
 using UnityEngine;
-using UnityEngine.XR.Interaction.Toolkit;
+
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine.SceneManagement;
 using Normal.Realtime;
+using UnityEngine.XR.Interaction.Toolkit;
 
 public class SortingTaskManager : MonoBehaviour {
     [Header("Logging Settings")]
@@ -106,24 +107,40 @@ public class SortingTaskManager : MonoBehaviour {
         }
     }
 
-    private void HandlePlacement(GameObject obj, GameObject trigger) {
+    private void HandlePlacement(GameObject obj, GameObject trigger)
+    {
         float timestamp = Time.time - startTime;
 
-        if (obj.name == trigger.name) {
+        if (obj.name == trigger.name)
+        {
             placedObjects[obj.name] = true;
             audioSource?.PlayOneShot(correctSound);
 
             obj.GetComponent<RealtimeView>()?.RequestOwnership();
-            obj.GetComponent<XRGrabInteractable>()?.interactionManager.CancelInteractableSelection(obj.GetComponent<XRGrabInteractable>());
+
+            var grab = obj.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+            if (grab != null && grab.interactionManager != null)
+            {
+                grab.interactionManager.CancelInteractableSelection(
+                    (UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)grab
+                );
+            }
+
             obj.transform.position = new Vector3(9999f, 9999f, 9999f);
 
-            if (!disableLogging) AppendPlacementLog(obj.name, "Correct", timestamp);
+            if (!disableLogging)
+                AppendPlacementLog(obj.name, "Correct", timestamp);
+
             CheckCompletion();
-        } else {
+        }
+        else
+        {
             errors++;
             audioSource?.PlayOneShot(errorSound);
             RespawnObject(obj);
-            if (!disableLogging) AppendPlacementLog(obj.name, "Incorrect", timestamp);
+
+            if (!disableLogging)
+                AppendPlacementLog(obj.name, "Incorrect", timestamp);
         }
     }
 
@@ -162,16 +179,24 @@ public class SortingTaskManager : MonoBehaviour {
         File.AppendAllText(metricsFilePath, row + "\n");
     }
 
-    private void RespawnObject(GameObject obj) {
-        if (objectSpawnPoints.TryGetValue(obj.name, out Vector3 spawn)) {
+    private void RespawnObject(GameObject obj)
+    {
+        if (objectSpawnPoints.TryGetValue(obj.name, out Vector3 spawn))
+        {
             Rigidbody rb = obj.GetComponent<Rigidbody>();
-            if (rb != null) {
-                rb.velocity = Vector3.zero;
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
             }
 
-            XRGrabInteractable grab = obj.GetComponent<XRGrabInteractable>();
-            grab?.interactionManager.CancelInteractableSelection(grab);
+            var grab = obj.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+            if (grab != null && grab.interactionManager != null)
+            {
+                grab.interactionManager.CancelInteractableSelection(
+                    (UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)grab
+                );
+            }
 
             obj.transform.position = spawn;
             obj.transform.rotation = objectRotations[obj.name];
@@ -224,7 +249,7 @@ public class SortingTaskManager : MonoBehaviour {
 
             Rigidbody rb = shape.GetComponent<Rigidbody>();
             if (rb != null) {
-                rb.velocity = Vector3.zero;
+                rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
                 rb.MovePosition(newPos);
                 rb.MoveRotation(newRot);

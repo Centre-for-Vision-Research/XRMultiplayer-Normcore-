@@ -1,6 +1,6 @@
 
 using UnityEngine;
-using UnityEngine.XR.Interaction.Toolkit;
+
 using Normal.Realtime;
 
 public class DynamicHandAttachPoints : MonoBehaviour
@@ -8,8 +8,8 @@ public class DynamicHandAttachPoints : MonoBehaviour
     public Transform leftHandAttach;  // Set this in the Inspector
     public Transform rightHandAttach; // Set this in the Inspector
 
-    private XRDirectInteractor leftDirectInteractor;  // Dynamically found
-    private XRDirectInteractor rightDirectInteractor; // Dynamically found
+    private UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor leftDirectInteractor;  // Dynamically found
+    private UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor rightDirectInteractor; // Dynamically found
 
     private RealtimeView realtimeView;
 
@@ -28,7 +28,7 @@ public class DynamicHandAttachPoints : MonoBehaviour
         // Continuously check and assign the left interactor
         if (leftDirectInteractor == null)
         {
-            leftDirectInteractor = FindInteractorGameObjectByName("Left Direct Interactor")?.GetComponent<XRDirectInteractor>();
+            leftDirectInteractor = FindInteractorGameObjectByName("Left Direct Interactor")?.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor>();
             if (leftDirectInteractor != null && leftHandAttach != null)
             {
                 leftDirectInteractor.attachTransform = leftHandAttach;
@@ -38,7 +38,7 @@ public class DynamicHandAttachPoints : MonoBehaviour
         // Continuously check and assign the right interactor
         if (rightDirectInteractor == null)
         {
-            rightDirectInteractor = FindInteractorGameObjectByName("Right Direct Interactor")?.GetComponent<XRDirectInteractor>();
+            rightDirectInteractor = FindInteractorGameObjectByName("Right Direct Interactor")?.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.XRDirectInteractor>();
             if (rightDirectInteractor != null && rightHandAttach != null)
             {
                 rightDirectInteractor.attachTransform = rightHandAttach;
