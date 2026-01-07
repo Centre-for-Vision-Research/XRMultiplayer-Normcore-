@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ccf3ac519ca468b439990d5bb086b0d7, type: 3}
   m_Name: SelectedAvatarConfig
   m_EditorClassIdentifier: 
-  bodyType: 
-  ethnicAppearance: 
-  skinShade: 
-  physique: 
+  bodyType: female
+  skinShade: light
+  physique: medium
+  dyadID: 0

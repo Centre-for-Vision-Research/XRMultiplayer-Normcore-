@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Linq;
 using UMA;
-using UMA.CharacterSystem; 
+using UMA.CharacterSystem;
 
 public class AvatarSelectionManager : MonoBehaviour
 {
@@ -12,23 +12,23 @@ public class AvatarSelectionManager : MonoBehaviour
 
     [Header("UI Toggle Groups")]
     public ToggleGroup bodyTypeGroup;
-    public ToggleGroup ethnicAppearanceGroup;
     public ToggleGroup skinToneGroup;
     public ToggleGroup physiqueGroup;
 
     [Header("Scriptable Object to Store Config")]
     public AvatarConfigData avatarConfig;
 
+    public GameObject avatarSelectionCanvas;
+    public GameObject experimentCanvas;
+
     private GameObject currentAvatar;
 
     void Start()
     {
-        // Set defaults from toggle states
         ApplyCurrentBodyType();
         ApplyCurrentAppearance();
     }
 
-    // Called by OnValueChanged on all toggles (bool passed is isOn)
     public void OnAnyToggleChanged()
     {
         ApplyCurrentBodyType();
@@ -37,9 +37,10 @@ public class AvatarSelectionManager : MonoBehaviour
 
     public void OnConfirmChoice()
     {
-        Debug.Log("Avatar config saved: " + avatarConfig.bodyType + ", " + avatarConfig.ethnicAppearance + ", " + avatarConfig.skinShade + ", " + avatarConfig.physique);
-        gameObject.SetActive(false); // Hide the canvas
-        // Optionally load next scene here
+
+        avatarSelectionCanvas.SetActive(false);
+        experimentCanvas.SetActive(true);
+        currentAvatar.SetActive(false);
     }
 
     void ApplyCurrentBodyType()
@@ -47,7 +48,6 @@ public class AvatarSelectionManager : MonoBehaviour
         string selectedGender = GetSelectedLabel(bodyTypeGroup);
         avatarConfig.bodyType = selectedGender;
 
-        // Enable one avatar and disable the other
         maleAvatar.SetActive(selectedGender == "Male");
         femaleAvatar.SetActive(selectedGender == "Female");
 
@@ -56,11 +56,9 @@ public class AvatarSelectionManager : MonoBehaviour
 
     void ApplyCurrentAppearance()
     {
-        avatarConfig.ethnicAppearance = GetSelectedLabel(ethnicAppearanceGroup);
         avatarConfig.skinShade = GetSelectedLabel(skinToneGroup);
         avatarConfig.physique = GetSelectedLabel(physiqueGroup);
 
-        ApplyEthnicAppearance(currentAvatar, avatarConfig.ethnicAppearance);
         ApplySkinShade(currentAvatar, avatarConfig.skinShade);
         ApplyPhysique(currentAvatar, avatarConfig.physique);
     }
@@ -71,16 +69,9 @@ public class AvatarSelectionManager : MonoBehaviour
         return toggle != null ? toggle.GetComponentInChildren<Text>().text.Trim() : "Unknown";
     }
 
-    // These are placeholders to plug in your material/mesh/dna logic
-    void ApplyEthnicAppearance(GameObject avatar, string value)
-    {
-        Debug.Log("Apply Ethnic Appearance: " + value);
-        // TODO: Swap materials/textures
-    }
-
     void ApplySkinShade(GameObject avatar, string value)
     {
-        var dca = avatar.GetComponent<UMA.CharacterSystem.DynamicCharacterAvatar>();
+        var dca = avatar.GetComponent<DynamicCharacterAvatar>();
         if (dca == null) return;
 
         Color skinColor;
@@ -102,9 +93,8 @@ public class AvatarSelectionManager : MonoBehaviour
         }
 
         dca.SetColor("Skin", skinColor);
-        dca.BuildCharacter(); // Apply changes
+        dca.BuildCharacter();
     }
-
 
     void ApplyPhysique(GameObject avatar, string value)
     {
@@ -112,7 +102,7 @@ public class AvatarSelectionManager : MonoBehaviour
         if (dca == null) return;
 
         float armWidth, forearmWidth, handSize;
-        float neckThickness, lowerMuscle, lowerWeight;
+        float neckThickness, lowerMuscle, lowerWeight, upperMuscle, upperWeight;
         float belly, waist;
 
         switch (value.ToLower())
@@ -121,19 +111,22 @@ public class AvatarSelectionManager : MonoBehaviour
                 armWidth = 0.3f; forearmWidth = 0.3f; handSize = 0.3f;
                 neckThickness = 0.3f;
                 lowerMuscle = 0.3f; lowerWeight = 0.3f;
-                belly = 0.2f; waist = 0.3f;
+                upperMuscle = 0.3f; upperWeight = 0.35f;
+                belly = 0.4f; waist = 0.4f;
                 break;
 
             case "broad":
                 armWidth = 0.75f; forearmWidth = 0.75f; handSize = 0.75f;
                 neckThickness = 0.7f;
                 lowerMuscle = 0.8f; lowerWeight = 0.7f;
-                belly = 0.8f; waist = 0.7f;
+                upperMuscle = 0.7f; upperWeight = 0.6f;
+                belly = 0.6f; waist = 0.5f;
                 break;
 
             default: // medium
                 armWidth = forearmWidth = handSize = 0.5f;
                 neckThickness = lowerMuscle = lowerWeight = 0.5f;
+                upperMuscle = 0.5f; upperWeight = 0.5f;
                 belly = waist = 0.5f;
                 break;
         }
@@ -144,11 +137,11 @@ public class AvatarSelectionManager : MonoBehaviour
         dca.SetDNA("neckThickness", neckThickness);
         dca.SetDNA("lowerMuscle", lowerMuscle);
         dca.SetDNA("lowerWeight", lowerWeight);
+        dca.SetDNA("upperMuscle", upperMuscle);
+        dca.SetDNA("upperWeight", upperWeight);
         dca.SetDNA("belly", belly);
         dca.SetDNA("waist", waist);
 
-        dca.BuildCharacter(); // Rebuild mesh
+        dca.BuildCharacter();
     }
-
-
 }

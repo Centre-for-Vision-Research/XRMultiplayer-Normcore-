@@ -6,7 +6,7 @@ public class LocalAvatarHeadVisibility : MonoBehaviour
     private RealtimeView realtimeView;
 
     [Tooltip("List of renderers to hide for the local player.")]
-    [SerializeField] private SkinnedMeshRenderer[] renderersToCull; // Renderers assigned via the Inspector
+    [SerializeField] private MeshRenderer[] renderersToCull; // Renderers assigned via the Inspector
 
     [Tooltip("Layer to assign to local avatar renderers for culling.")]
     [SerializeField] private string cullingLayerName = "LocalAvatarCulling"; // Layer name

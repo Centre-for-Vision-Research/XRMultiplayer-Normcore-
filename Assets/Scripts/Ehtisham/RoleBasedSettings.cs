@@ -1,18 +1,21 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using Normal.Realtime;
+using UnityEngine.SceneManagement;
 
 public class RoleBasedSettings : MonoBehaviour {
     private Realtime realtime;
     private RealtimeView realtimeView;
     private XRDirectInteractor leftDirectInteractor;
     private XRDirectInteractor rightDirectInteractor;
+    string sceneName;
 
     private bool applied = false;
 
     void Start() {
         realtime = FindObjectOfType<Realtime>();
         realtimeView = GetComponent<RealtimeView>();
+        sceneName = SceneManager.GetActiveScene().name.ToLower();
     }
 
     public void ApplyRoleSettings() {
@@ -27,7 +30,7 @@ public class RoleBasedSettings : MonoBehaviour {
         leftDirectInteractor = FindInteractorGameObjectByName("Left Direct Interactor")?.GetComponent<XRDirectInteractor>();
         rightDirectInteractor = FindInteractorGameObjectByName("Right Direct Interactor")?.GetComponent<XRDirectInteractor>();
 
-        if (isTeacher) {
+        if (isTeacher && !sceneName.Contains("tutorial")) {
             if (leftDirectInteractor != null) leftDirectInteractor.enabled = false;
             if (rightDirectInteractor != null) rightDirectInteractor.enabled = false;
         }

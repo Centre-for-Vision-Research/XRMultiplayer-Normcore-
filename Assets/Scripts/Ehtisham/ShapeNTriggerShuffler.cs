@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Normal.Realtime;
+
 
 public class ShapeNTriggerShuffler : MonoBehaviour {
     IEnumerator Start() {
@@ -63,12 +65,24 @@ public class ShapeNTriggerShuffler : MonoBehaviour {
             SwapTransforms(trA, trB);
         }
 
-        // Apply role-based settings AFTER shuffling
-        RoleBasedSettings rbs = FindObjectOfType<RoleBasedSettings>();
-        if (rbs != null) {
-            rbs.ApplyRoleSettings();
+
+        // Apply role-based settings on LOCALLY OWNED AVATR AFTER shuffling
+
+        RoleBasedSettings[] allRBS = FindObjectsOfType<RoleBasedSettings>();
+        RoleBasedSettings localRBS = null;
+
+        foreach (var rbs in allRBS) {
+            RealtimeView view = rbs.GetComponent<RealtimeView>();
+            if (view != null && view.isOwnedLocallySelf) {
+                localRBS = rbs;
+                break;
+            }
+        }
+
+        if (localRBS != null) {
+            localRBS.ApplyRoleSettings();
         } else {
-            Debug.LogWarning("RoleBasedSettings not found in scene.");
+            Debug.LogWarning("Local RoleBasedSettings not found.");
         }
     }
 

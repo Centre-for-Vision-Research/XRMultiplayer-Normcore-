@@ -216,7 +216,7 @@ public class EnvObject : MonoBehaviour
     {
         if (collision.collider.CompareTag("Floor"))
         {
-            ResetToStartPos();
+            // ResetToStartPos();
         }
     }
 
@@ -224,7 +224,7 @@ public class EnvObject : MonoBehaviour
     {
         if (collision.collider.CompareTag("Floor"))
         {
-            ResetToStartPos();
+            // ResetToStartPos();
         }
     }
 
@@ -232,7 +232,7 @@ public class EnvObject : MonoBehaviour
     {
         if (other.CompareTag("Trigger"))
         {
-            if (other.name.ToLower().Contains("reset")) ResetToStartPos();
+            // if (other.name.ToLower().Contains("reset")) ResetToStartPos();
             if (other.name.ToLower().Contains("box")) _statusWRTBox = StatusWRTBox.InsideBox;
             else if (other.name.ToLower().Contains("hole")) _statusWRTBox = StatusWRTBox.EnteringBoxRight;
 

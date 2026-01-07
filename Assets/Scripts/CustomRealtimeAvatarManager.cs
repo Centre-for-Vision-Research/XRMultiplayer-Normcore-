@@ -7,6 +7,8 @@ public class CustomAvatarManager : MonoBehaviour {
     public Realtime realtime;
     public List<GameObject> avatarPrefabs; // Multiple prefabs
     private GameObject avatarGameObject;
+    public AvatarConfigData avatarConfig;
+
 
     void Start() {
         // Ensure we have a reference to Realtime
@@ -68,19 +70,21 @@ public class CustomAvatarManager : MonoBehaviour {
             return null;
 
         // Use saved selection in high-fid scenes
-        if (SceneManager.GetActiveScene().name.Contains("HighFid")) {
-            int savedIndex = PlayerPrefs.GetInt("SelectedAvatarIndex", 0); // Default to 0 if not set
-            if (savedIndex >= 0 && savedIndex < avatarPrefabs.Count) {
-                return avatarPrefabs[savedIndex];
+        if (SceneManager.GetActiveScene().name.Contains("HighFid") && avatarConfig != null) {
+            int index = avatarConfig.bodyType.ToLower() == "female" ? 0 : 1;
+
+            if (index >= 0 && index < avatarPrefabs.Count) {
+                return avatarPrefabs[index];
             } else {
-                Debug.LogWarning("⚠️ Saved index out of range, falling back to clientID-based assignment.");
+                Debug.LogWarning("Config-selected index out of range, falling back to clientID-based assignment.");
             }
         }
 
-        // Low-fid fallback or invalid index
-        int prefabIndex = clientID % avatarPrefabs.Count;
-        return avatarPrefabs[prefabIndex];
+        // Low-fid fallback or invalid config
+        int fallbackIndex = clientID % avatarPrefabs.Count;
+        return avatarPrefabs[fallbackIndex];
     }
+
 
 
     private void RequestOwnershipOfAvatarAndChildren(RealtimeView realtimeView) {

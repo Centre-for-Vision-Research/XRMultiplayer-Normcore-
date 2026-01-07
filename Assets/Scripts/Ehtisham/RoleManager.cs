@@ -1,10 +1,11 @@
-using UnityEngine;
-using Normal.Realtime;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+using Normal.Realtime;
 
 public class RoleManager : RealtimeComponent<RoleManagerModel> {
     public static RoleManager Instance;
+
     private bool roleAssigned = false; // Prevent duplicate assignment
 
     void Awake() {
@@ -16,7 +17,7 @@ public class RoleManager : RealtimeComponent<RoleManagerModel> {
     }
 
     void Start() {
-        if (this.realtime == null) {  
+        if (this.realtime == null) {
             Debug.LogError("Realtime component not found in the scene.");
             return;
         }
@@ -32,7 +33,7 @@ public class RoleManager : RealtimeComponent<RoleManagerModel> {
             // Get all player avatars (assumed to have "PlayerAvatar" tag)
             foreach (GameObject avatar in GameObject.FindGameObjectsWithTag("PlayerAvatar")) {
                 RealtimeView view = avatar.GetComponent<RealtimeView>();
-                if (view != null && !clientIDs.Contains(view.ownerIDInHierarchy) && view.ownerIDInHierarchy >= 0) {
+                if (view != null && view.ownerIDInHierarchy >= 0 && !clientIDs.Contains(view.ownerIDInHierarchy)) {
                     clientIDs.Add(view.ownerIDInHierarchy);
                 }
             }
@@ -45,6 +46,7 @@ public class RoleManager : RealtimeComponent<RoleManagerModel> {
                 yield break; // Master will handle assignment
             }
 
+            // If already assigned, stop
             if (GetTeacherID() != 0 && GetStudentID() != 0) {
                 roleAssigned = true;
                 yield break;
@@ -60,19 +62,24 @@ public class RoleManager : RealtimeComponent<RoleManagerModel> {
             // Generate and assign a common random seed
             int commonSeed = Random.Range(1, 1000000); // Use 1 to avoid 0
             model.commonSeed = commonSeed;
-            Debug.Log($"Roles assigned: Teacher = {teacherID}, Student = {studentID} | Common Seed = {commonSeed}");
 
+            // Initialize hole index to "none"
+            model.currentHoleIndex = -1;
+            
             roleAssigned = true;
             yield break;
         }
     }
 
+    // ----------------------------------------------------------------
+    // Public helpers — use these from other scripts (NO direct model!)
+    // ----------------------------------------------------------------
     public bool IsTeacher(int clientID) {
-        return model.teacherID == clientID;
+        return model != null && model.teacherID == clientID;
     }
 
     public bool IsStudent(int clientID) {
-        return model.studentID == clientID;
+        return model != null && model.studentID == clientID;
     }
 
     public int GetTeacherID() {
@@ -82,12 +89,59 @@ public class RoleManager : RealtimeComponent<RoleManagerModel> {
     public int GetStudentID() {
         return model != null ? model.studentID : 0;
     }
-    
+
     public int GetCommonSeed() {
         return model != null ? model.commonSeed : 0;
     }
-}
 
+    public int GetCurrentHoleIndex() {
+        return model != null ? model.currentHoleIndex : -1;
+    }
+
+    // --------------------------------------------------------------
+    // Expose GameRoot Pose from model
+    // --------------------------------------------------------------
+    public bool GetGameRootPoseSet() {
+        return model != null && model.gameRootPoseSet;
+    }
+
+    public Vector3 GetGameRootPosition() {
+        if (model == null) return Vector3.zero;
+        return new Vector3(model.grPosX, model.grPosY, model.grPosZ);
+    }
+
+    public Quaternion GetGameRootRotation() {
+        if (model == null) return Quaternion.identity;
+        return new Quaternion(model.grRotX, model.grRotY, model.grRotZ, model.grRotW);
+    }
+
+    // Only host should call this
+    public void SetGameRootPose(Vector3 pos, Quaternion rot) {
+        if (model == null) return;
+        model.grPosX = pos.x;
+        model.grPosY = pos.y;
+        model.grPosZ = pos.z;
+        model.grRotX = rot.x;
+        model.grRotY = rot.y;
+        model.grRotZ = rot.z;
+        model.grRotW = rot.w;
+        model.gameRootPoseSet = true;
+    }
+
+
+    // Only whoever owns this RoleManagerView should call this
+    public void SetCurrentHoleIndex(int index) {
+        if (model == null) return;
+
+        // Optional: only allow lowest clientID / "master" to drive it
+        if (realtime != null) {
+            int lowestClientID = realtime.clientID; // Minimal assumption
+            // You can add extra guard here if needed
+        }
+
+        model.currentHoleIndex = index;
+    }
+}
 
 
 
