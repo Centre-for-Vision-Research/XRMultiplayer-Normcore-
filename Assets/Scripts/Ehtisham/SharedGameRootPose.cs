@@ -16,12 +16,24 @@ public class SharedGameRootPose : MonoBehaviour {
         InvokeRepeating(nameof(SubscribeToModelChanges), 0.2f, 0.2f);
     }
 
-    void Update() {
-        if (roleManager != null && roleManager.IsTeacher(realtime.clientID)) {
-            // Press A button (Oculus) or keyboard key for placement
-            if (OVRInput.GetDown(OVRInput.Button.One) || Input.GetKeyDown(KeyCode.P)) {
+    void Update()
+    {
+        if (roleManager == null || realtime == null) return;
+
+        bool isTeacher = roleManager.IsTeacher(realtime.clientID);
+
+        if (isTeacher)
+        {
+            if (OVRInput.GetDown(OVRInput.Button.One) || Input.GetKeyDown(KeyCode.P))
+            {
                 HostSetTableHere();
-                Debug.Log("Host placed the table!");
+            }
+        }
+        else
+        {
+            if (roleManager.GetGameRootPoseSet())
+            {
+                ApplyModelPose();
             }
         }
     }
