@@ -3,143 +3,149 @@ using System.Collections.Generic;
 using UnityEngine;
 using Normal.Realtime;
 
-public class RoleManager : RealtimeComponent<RoleManagerModel> {
+public class RoleManager : RealtimeComponent<RoleManagerModel>
+{
     public static RoleManager Instance;
 
     private bool roleAssigned = false; // Prevent duplicate assignment
 
-    void Awake() {
-        if (Instance == null) {
+    void Awake()
+    {
+        if (Instance == null)
+        {
             Instance = this;
-        } else {
+            Debug.Log("[RoleManager] Instance created.");
+        }
+        else
+        {
             Destroy(gameObject);
         }
     }
 
-    void Start() {
-        if (this.realtime == null) {
-            Debug.LogError("Realtime component not found in the scene.");
+    void Start()
+    {
+        if (this.realtime == null)
+        {
+            Debug.LogError("[RoleManager] Realtime component not found in the scene.");
             return;
         }
+
+        Debug.Log("[RoleManager] Starting role assignment coroutine.");
         StartCoroutine(WaitForPlayersAndAssignRoles());
     }
 
-    private IEnumerator WaitForPlayersAndAssignRoles() {
-        while (!roleAssigned) {
-            yield return new WaitForSeconds(1.0f); // Check every second
+    private IEnumerator WaitForPlayersAndAssignRoles()
+    {
+        while (!roleAssigned)
+        {
+            yield return new WaitForSeconds(1.0f);
 
             List<int> clientIDs = new List<int>();
 
-            // Get all player avatars (assumed to have "PlayerAvatar" tag)
-            foreach (GameObject avatar in GameObject.FindGameObjectsWithTag("PlayerAvatar")) {
+            // Find all avatars tagged PlayerAvatar
+            foreach (GameObject avatar in GameObject.FindGameObjectsWithTag("PlayerAvatar"))
+            {
                 RealtimeView view = avatar.GetComponent<RealtimeView>();
-                if (view != null && view.ownerIDInHierarchy >= 0 && !clientIDs.Contains(view.ownerIDInHierarchy)) {
-                    clientIDs.Add(view.ownerIDInHierarchy);
+                if (view != null && view.ownerIDInHierarchy >= 0)
+                {
+                    if (!clientIDs.Contains(view.ownerIDInHierarchy))
+                    {
+                        clientIDs.Add(view.ownerIDInHierarchy);
+                    }
                 }
             }
 
-            if (clientIDs.Count < 2) continue; // Wait until at least 2 players have joined
-
-            // Only the master client (lowest clientID) assigns roles
-            int lowestClientID = Mathf.Min(clientIDs.ToArray());
-            if (this.realtime.clientID != lowestClientID) {
-                yield break; // Master will handle assignment
+            if (clientIDs.Count < 2)
+            {
+                Debug.Log("[RoleManager] Waiting for 2 players to join...");
+                continue;
             }
 
-            // If already assigned, stop
-            if (GetTeacherID() != 0 && GetStudentID() != 0) {
-                roleAssigned = true;
+            // Only lowest clientID assigns roles
+            int lowestClientID = Mathf.Min(client_toggle(clientIDs));
+            if (this.realtime.clientID != lowestClientID)
+            {
+                Debug.Log("[RoleManager] Not master client. Waiting for host to assign roles.");
                 yield break;
             }
 
-            // Teacher is always the first client. Student joins second!
+            // Stop if already assigned
+            if (model.teacherID != 0 || model.studentID != 0)
+            {
+                roleAssigned = true;
+                Debug.Log("[RoleManager] Roles already assigned. Exiting.");
+                yield break;
+            }
+
+            // Assign roles
             int teacherID = clientIDs[0];
             int studentID = clientIDs[1];
 
             model.teacherID = teacherID;
             model.studentID = studentID;
 
-            // Generate and assign a common random seed
-            int commonSeed = Random.Range(1, 1000000); // Use 1 to avoid 0
+            int commonSeed = Random.Range(1, 1000000);
             model.commonSeed = commonSeed;
-
-            // Initialize hole index to "none"
             model.currentHoleIndex = -1;
-            
+
             roleAssigned = true;
+
+            Debug.Log(
+                $"[RoleManager] Roles assigned. " +
+                $"TeacherID={teacherID}, StudentID={studentID}, CommonSeed={commonSeed}"
+            );
+
             yield break;
         }
     }
 
     // ----------------------------------------------------------------
-    // Public helpers — use these from other scripts (NO direct model!)
+    // Public helpers (safe accessors)
     // ----------------------------------------------------------------
-    public bool IsTeacher(int clientID) {
+    public bool IsTeacher(int clientID)
+    {
         return model != null && model.teacherID == clientID;
     }
 
-    public bool IsStudent(int clientID) {
+    public bool IsStudent(int clientID)
+    {
         return model != null && model.studentID == clientID;
     }
 
-    public int GetTeacherID() {
+    public int GetTeacherID()
+    {
         return model != null ? model.teacherID : 0;
     }
 
-    public int GetStudentID() {
+    public int GetStudentID()
+    {
         return model != null ? model.studentID : 0;
     }
 
-    public int GetCommonSeed() {
+    public int GetCommonSeed()
+    {
         return model != null ? model.commonSeed : 0;
     }
 
-    public int GetCurrentHoleIndex() {
+    public int GetCurrentHoleIndex()
+    {
         return model != null ? model.currentHoleIndex : -1;
     }
 
-    // --------------------------------------------------------------
-    // Expose GameRoot Pose from model
-    // --------------------------------------------------------------
-    public bool GetGameRootPoseSet() {
-        return model != null && model.gameRootPoseSet;
-    }
-
-    public Vector3 GetGameRootPosition() {
-        if (model == null) return Vector3.zero;
-        return new Vector3(model.grPosX, model.grPosY, model.grPosZ);
-    }
-
-    public Quaternion GetGameRootRotation() {
-        if (model == null) return Quaternion.identity;
-        return new Quaternion(model.grRotX, model.grRotY, model.grRotZ, model.grRotW);
-    }
-
-    // Only host should call this
-    public void SetGameRootPose(Vector3 pos, Quaternion rot) {
+    // Only whoever owns RoleManagerView should call this
+    public void SetCurrentHoleIndex(int index)
+    {
         if (model == null) return;
-        model.grPosX = pos.x;
-        model.grPosY = pos.y;
-        model.grPosZ = pos.z;
-        model.grRotX = rot.x;
-        model.grRotY = rot.y;
-        model.grRotZ = rot.z;
-        model.grRotW = rot.w;
-        model.gameRootPoseSet = true;
-    }
-
-
-    // Only whoever owns this RoleManagerView should call this
-    public void SetCurrentHoleIndex(int index) {
-        if (model == null) return;
-
-        // Optional: only allow lowest clientID / "master" to drive it
-        if (realtime != null) {
-            int lowestClientID = realtime.clientID; // Minimal assumption
-            // You can add extra guard here if needed
-        }
-
         model.currentHoleIndex = index;
+    }
+
+    // Utility
+    private int[] client_toggle(List<int> list)
+    {
+        int[] arr = new int[list.Count];
+        for (int i = 0; i < list.Count; i++)
+            arr[i] = list[i];
+        return arr;
     }
 }
 
