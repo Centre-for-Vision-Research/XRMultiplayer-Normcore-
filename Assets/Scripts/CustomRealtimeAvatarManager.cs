@@ -45,7 +45,7 @@ public class CustomAvatarManager : MonoBehaviour
     {
         Debug.Log($"[CustomAvatarManager] Connected to room. clientID={realtime.clientID} isMRScene={isMRScene}");
 
-        Vector3 spawnOffset = isMRScene ? Vector3.zero : GetUniqueSpawnOffset();
+        Vector3 spawnOffset = Vector3.zero;
 
         GameObject selectedPrefab = GetPrefabForClientID(realtime.clientID);
         if (selectedPrefab == null)
@@ -162,13 +162,6 @@ public class CustomAvatarManager : MonoBehaviour
             if (child.childCount > 0)
                 RequestOwnershipOfChildren(child);
         }
-    }
-
-    private Vector3 GetUniqueSpawnOffset()
-    {
-        int playerID = realtime.clientID;
-        float spacing = 2.0f;
-        return new Vector3(playerID * spacing, 0, 0);
     }
 }
 
