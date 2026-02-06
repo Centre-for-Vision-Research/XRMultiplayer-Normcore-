@@ -57,7 +57,6 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
 
             if (clientIDs.Count < 2)
             {
-                Debug.Log("[RoleManager] Waiting for 2 players to join...");
                 continue;
             }
 

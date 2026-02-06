@@ -5,20 +5,27 @@ public class MRNetworkPosePublisher : MonoBehaviour
 {
     public bool isMRScene = true;
 
+    [Header("NetTargets (children under avatar)")]
     public Transform headNet;
     public Transform leftNet;
     public Transform rightNet;
 
+    [Header("XR Target Names in Scene (optional)")]
     public string headXRName = "Head Camera Target";
     public string leftXRName = "Left Cont Target";
     public string rightXRName = "Right Cont Target";
+
+    [Header("Robustness")]
+    public float findRetryInterval = 0.5f;
+    public bool logWhenMissing = true;
 
     private Transform headXR;
     private Transform leftXR;
     private Transform rightXR;
 
     private RealtimeView view;
-    private Transform avatarRoot;
+    private float nextFindTime = 0f;
+    private bool warnedOnce = false;
 
     void Start()
     {
@@ -28,35 +35,75 @@ public class MRNetworkPosePublisher : MonoBehaviour
         if (view == null)
         {
             Debug.LogError("[MRNetworkPosePublisher] Missing RealtimeView.");
+            enabled = false;
             return;
         }
 
+        // Only publish for local-owned avatar
         if (!view.isOwnedLocallySelf)
-            return;
-
-        avatarRoot = transform;
-
-        headXR = GameObject.Find(headXRName)?.transform;
-        leftXR = GameObject.Find(leftXRName)?.transform;
-        rightXR = GameObject.Find(rightXRName)?.transform;
-
-        if (headXR == null || leftXR == null || rightXR == null)
         {
-            Debug.LogError("[MRNetworkPosePublisher] XR targets not found.");
+            enabled = false;
             return;
+        }
+
+        TryFindTargets(forceLog: false);
+    }
+
+    void Update()
+    {
+        if (!isMRScene) return;
+
+        if (Time.time >= nextFindTime)
+        {
+            nextFindTime = Time.time + findRetryInterval;
+
+            // Keep trying until we have the targets
+            if (headXR == null || leftXR == null || rightXR == null)
+                TryFindTargets(forceLog: false);
         }
     }
 
     void LateUpdate()
     {
         if (!isMRScene || view == null || !view.isOwnedLocallySelf) return;
+        if (MRSharedAnchorManager.Instance == null || !MRSharedAnchorManager.Instance.AnchorReady) return;
 
-        headNet.localPosition = avatarRoot.InverseTransformPoint(headXR.position);
-        leftNet.localPosition = avatarRoot.InverseTransformPoint(leftXR.position);
-        rightNet.localPosition = avatarRoot.InverseTransformPoint(rightXR.position);
+        Transform anchor = MRSharedAnchorManager.Instance.AnchorTransform;
+        if (anchor == null) return;
 
-        headNet.localRotation = Quaternion.Inverse(avatarRoot.rotation) * headXR.rotation;
-        leftNet.localRotation = Quaternion.Inverse(avatarRoot.rotation) * leftXR.rotation;
-        rightNet.localRotation = Quaternion.Inverse(avatarRoot.rotation) * rightXR.rotation;
+        if (headXR == null || leftXR == null || rightXR == null)
+        {
+            if (logWhenMissing && !warnedOnce)
+            {
+                warnedOnce = true;
+                Debug.LogWarning("[MRNetworkPosePublisher] XR targets missing. Will keep retrying (controllers may appear late).");
+            }
+            return;
+        }
+
+        // Publish XR poses in anchor space
+        headNet.localPosition  = anchor.InverseTransformPoint(headXR.position);
+        leftNet.localPosition  = anchor.InverseTransformPoint(leftXR.position);
+        rightNet.localPosition = anchor.InverseTransformPoint(rightXR.position);
+
+        headNet.localRotation  = Quaternion.Inverse(anchor.rotation) * headXR.rotation;
+        leftNet.localRotation  = Quaternion.Inverse(anchor.rotation) * leftXR.rotation;
+        rightNet.localRotation = Quaternion.Inverse(anchor.rotation) * rightXR.rotation;
+    }
+
+    private void TryFindTargets(bool forceLog)
+    {
+        if (headXR == null)
+            headXR = GameObject.Find(headXRName)?.transform;
+        if (leftXR == null)
+            leftXR = GameObject.Find(leftXRName)?.transform;
+        if (rightXR == null)
+            rightXR = GameObject.Find(rightXRName)?.transform;
+
+        if ((forceLog || logWhenMissing) && (headXR == null || leftXR == null || rightXR == null))
+        {
+            // Only mild logging, no error spam
+            // This is normal when controllers connect late on device
+        }
     }
 }

@@ -186,18 +186,9 @@ public class IKTargetFollowVRRig : MonoBehaviour
             return;
         }
 
-        // Local MR: root follows XR head in XZ + yaw (do NOT touch Y)
-        if (realtimeView.isOwnedLocallySelf && xrHead != null)
-        {
-            Vector3 p = transform.position;
-            p.x = xrHead.position.x;
-            p.z = xrHead.position.z;
-            transform.position = p;
-
-            float yaw = xrHead.eulerAngles.y + headBodyYawOffset;
-            transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(0f, yaw, 0f), turnSmoothness);
-        }
-
+        // Do NOT move avatar root in MR.
+        // Root stays in NetworkAvatars under the shared anchor.
+        // Just map NetTargets -> IK targets.
         head.Map();
         leftHand.Map();
         rightHand.Map();
