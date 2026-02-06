@@ -5,10 +5,10 @@ using Normal.Realtime.Serialization;
 public partial class RoleManagerModel
 {
     [RealtimeProperty(1, true, true)]
-    private int _teacherID;
+    private int _teacherID = -1;
 
     [RealtimeProperty(2, true, true)]
-    private int _studentID;
+    private int _studentID = -1;
 
     [RealtimeProperty(3, true, true)]
     private int _commonSeed;

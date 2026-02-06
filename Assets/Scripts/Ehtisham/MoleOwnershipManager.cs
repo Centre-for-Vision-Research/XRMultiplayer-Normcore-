@@ -1,15 +1,16 @@
 using UnityEngine;
 using Normal.Realtime;
-using System.Collections.Generic;
+using System.Collections;
 
 public class MoleOwnershipManager : MonoBehaviour {
+    public bool verboseLogs = true;
 
     private Realtime realtime;
 
     void Start() {
         realtime = FindObjectOfType<Realtime>();
         if (realtime == null) {
-            Debug.LogError("Realtime not found.");
+            Debug.LogError("[MoleOwnershipManager] Realtime not found.");
             return;
         }
 
@@ -22,24 +23,30 @@ public class MoleOwnershipManager : MonoBehaviour {
     }
 
     private void DidConnect(Realtime room) {
-        // Only host controls moles
-        if (RoleManager.Instance == null) return;
-        if (!RoleManager.Instance.IsTeacher(realtime.clientID)) return;
+        StartCoroutine(TakeOwnershipAfterDelay());
+    }
 
-        // Find all mole views
-        foreach (MoleController mole in FindObjectsOfType<MoleController>()) {
+    private IEnumerator TakeOwnershipAfterDelay() {
+        // wait so scene views are registered
+        for (int i = 0; i < 10; i++) yield return null;
 
-            RealtimeView view = mole.GetComponent<RealtimeView>();
+        // Only teacher should request ownership (consistent with authority)
+        if (RoleManager.Instance == null || !RoleManager.Instance.IsTeacher(realtime.clientID)) {
+            if (verboseLogs) Debug.Log($"[MoleOwnershipManager] Not teacher (cid={realtime.clientID}). Skipping ownership requests.");
+            yield break;
+        }
+
+        var moles = FindObjectsOfType<MoleController>(true);
+        int count = 0;
+
+        foreach (var mole in moles) {
+            var view = mole.GetComponent<RealtimeView>();
             if (view != null) {
                 view.RequestOwnership();
-            }
-
-            RealtimeTransform rt = mole.GetComponent<RealtimeTransform>();
-            if (rt != null) {
-                rt.RequestOwnership();
+                count++;
             }
         }
 
-        Debug.Log("Host successfully took ownership of all moles.");
+        if (verboseLogs) Debug.Log($"[MoleOwnershipManager] Teacher requested ownership for {count} mole views.");
     }
 }

@@ -63,6 +63,8 @@ public class MRNetworkPosePublisher : MonoBehaviour
         }
     }
 
+    [Range(0f, 1f)] public float smoothing = 0.25f; // add field
+
     void LateUpdate()
     {
         if (!isMRScene || view == null || !view.isOwnedLocallySelf) return;
@@ -71,25 +73,27 @@ public class MRNetworkPosePublisher : MonoBehaviour
         Transform anchor = MRSharedAnchorManager.Instance.AnchorTransform;
         if (anchor == null) return;
 
-        if (headXR == null || leftXR == null || rightXR == null)
-        {
-            if (logWhenMissing && !warnedOnce)
-            {
-                warnedOnce = true;
-                Debug.LogWarning("[MRNetworkPosePublisher] XR targets missing. Will keep retrying (controllers may appear late).");
-            }
-            return;
-        }
+        if (headXR == null || leftXR == null || rightXR == null) return;
 
-        // Publish XR poses in anchor space
-        headNet.localPosition  = anchor.InverseTransformPoint(headXR.position);
-        leftNet.localPosition  = anchor.InverseTransformPoint(leftXR.position);
-        rightNet.localPosition = anchor.InverseTransformPoint(rightXR.position);
+        Vector3 headP  = anchor.InverseTransformPoint(headXR.position);
+        Vector3 leftP  = anchor.InverseTransformPoint(leftXR.position);
+        Vector3 rightP = anchor.InverseTransformPoint(rightXR.position);
 
-        headNet.localRotation  = Quaternion.Inverse(anchor.rotation) * headXR.rotation;
-        leftNet.localRotation  = Quaternion.Inverse(anchor.rotation) * leftXR.rotation;
-        rightNet.localRotation = Quaternion.Inverse(anchor.rotation) * rightXR.rotation;
+        Quaternion headR  = Quaternion.Inverse(anchor.rotation) * headXR.rotation;
+        Quaternion leftR  = Quaternion.Inverse(anchor.rotation) * leftXR.rotation;
+        Quaternion rightR = Quaternion.Inverse(anchor.rotation) * rightXR.rotation;
+
+        float t = 1f - Mathf.Pow(1f - smoothing, Time.deltaTime * 60f);
+
+        headNet.localPosition  = Vector3.Lerp(headNet.localPosition,  headP,  t);
+        leftNet.localPosition  = Vector3.Lerp(leftNet.localPosition,  leftP,  t);
+        rightNet.localPosition = Vector3.Lerp(rightNet.localPosition, rightP, t);
+
+        headNet.localRotation  = Quaternion.Slerp(headNet.localRotation,  headR,  t);
+        leftNet.localRotation  = Quaternion.Slerp(leftNet.localRotation,  leftR,  t);
+        rightNet.localRotation = Quaternion.Slerp(rightNet.localRotation, rightR, t);
     }
+
 
     private void TryFindTargets(bool forceLog)
     {

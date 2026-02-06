@@ -79,22 +79,22 @@ public class IKTargetFollowVRRig : MonoBehaviour
         // ------------------------------------------------------------
         // MR PATH (leave VR calibration untouched)
         // ------------------------------------------------------------
-        if (isMRScene)
-        {
-            AssignMRNetTargets(); // assign for both local and remote (NetTargets exist on prefab)
+        // if (isMRScene)
+        // {
+        //     AssignMRNetTargets(); // assign for both local and remote (NetTargets exist on prefab)
 
-            if (realtimeView.isOwnedLocallySelf)
-            {
-                xrHead = GameObject.Find(headXRName)?.transform;
-                if (xrHead == null)
-                {
-                    Debug.LogError($"[IKTargetFollowVRRig] MR: Could not find '{headXRName}' for local owner.");
-                }
-            }
+        //     if (realtimeView.isOwnedLocallySelf)
+        //     {
+        //         xrHead = GameObject.Find(headXRName)?.transform;
+        //         if (xrHead == null)
+        //         {
+        //             Debug.LogError($"[IKTargetFollowVRRig] MR: Could not find '{headXRName}' for local owner.");
+        //         }
+        //     }
 
-            calibrationDone = true; // MR does not use CameraYOffset
-            return;
-        }
+        //     calibrationDone = true; // MR does not use CameraYOffset
+        //     return;
+        // }
 
         // ------------------------------------------------------------
         // VR PATH (keep your original behavior)
@@ -132,68 +132,99 @@ public class IKTargetFollowVRRig : MonoBehaviour
 
     void Update()
     {
-        // VR: keep trying to assign XR targets after calibration until success
-        if (!isMRScene)
-        {
-            if (!realtimeView.isOwnedLocallySelf) return;
-            if (!calibrationDone) return;
+        if (!realtimeView.isOwnedLocallySelf) return;
+        if (!calibrationDone) return;
 
-            if (!targetsAssigned)
-            {
-                AssignVRTargets(); // keep trying each frame until found
-            }
-            return;
+        if (!targetsAssigned)
+        {
+            AssignVRTargets(); // keep trying each frame until found
         }
+        return;
+
+        // VR: keep trying to assign XR targets after calibration until success
+        // if (!isMRScene)
+        // {
+        //     if (!realtimeView.isOwnedLocallySelf) return;
+        //     if (!calibrationDone) return;
+
+        //     if (!targetsAssigned)
+        //     {
+        //         AssignVRTargets(); // keep trying each frame until found
+        //     }
+        //     return;
+        // }
 
         // MR: targets assigned in Start; nothing required here
     }
 
     void LateUpdate()
     {
-        // ------------------------
-        // VR behavior (same intent, safer order)
-        // ------------------------
-        if (!isMRScene)
-        {
-            if (!realtimeView.isOwnedLocallySelf) return;
-            if (!targetsAssigned || !calibrationDone)
-            {
-                DebugLogStatus();
-                return;
-            }
-
-            // IMPORTANT CHANGE: Map FIRST so head.ikTarget is current frame, not prefab default
-            head.Map();
-            leftHand.Map();
-            rightHand.Map();
-
-            // Then move avatar root based on mapped head IK target (your original behavior)
-            transform.position = head.ikTarget.position + headBodyPositionOffset;
-
-            float yaw = head.vrTarget.eulerAngles.y + headBodyYawOffset;
-            transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(0f, yaw, 0f), turnSmoothness);
-
-            DebugLogStatus();
-            return;
-        }
-
-        // ------------------------
-        // MR behavior
-        // ------------------------
-        if (!targetsAssigned)
+        if (!realtimeView.isOwnedLocallySelf) return;
+        if (!targetsAssigned || !calibrationDone)
         {
             DebugLogStatus();
             return;
         }
 
-        // Do NOT move avatar root in MR.
-        // Root stays in NetworkAvatars under the shared anchor.
-        // Just map NetTargets -> IK targets.
+        // IMPORTANT CHANGE: Map FIRST so head.ikTarget is current frame, not prefab default
         head.Map();
         leftHand.Map();
         rightHand.Map();
 
+        // Then move avatar root based on mapped head IK target (your original behavior)
+        transform.position = head.ikTarget.position + headBodyPositionOffset;
+
+        float yaw = head.vrTarget.eulerAngles.y + headBodyYawOffset;
+        transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(0f, yaw, 0f), turnSmoothness);
+
         DebugLogStatus();
+        return;
+
+
+        // // ------------------------
+        // // VR behavior (same intent, safer order)
+        // // ------------------------
+        // if (!isMRScene)
+        // {
+        //     if (!realtimeView.isOwnedLocallySelf) return;
+        //     if (!targetsAssigned || !calibrationDone)
+        //     {
+        //         DebugLogStatus();
+        //         return;
+        //     }
+
+        //     // IMPORTANT CHANGE: Map FIRST so head.ikTarget is current frame, not prefab default
+        //     head.Map();
+        //     leftHand.Map();
+        //     rightHand.Map();
+
+        //     // Then move avatar root based on mapped head IK target (your original behavior)
+        //     transform.position = head.ikTarget.position + headBodyPositionOffset;
+
+        //     float yaw = head.vrTarget.eulerAngles.y + headBodyYawOffset;
+        //     transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.Euler(0f, yaw, 0f), turnSmoothness);
+
+        //     DebugLogStatus();
+        //     return;
+        // }
+
+        // // ------------------------
+        // // MR behavior
+        // // ------------------------
+        // if (!targetsAssigned)
+        // {
+        //     DebugLogStatus();
+        //     return;
+        // }
+
+        // // Do NOT move avatar root in MR.
+        // // Root stays in NetworkAvatars under the shared anchor.
+        // // Just map NetTargets -> IK targets.
+        // head.Map();
+        // leftHand.Map();
+        // rightHand.Map();
+
+        // DebugLogStatus();
     }
 
     private System.Collections.IEnumerator CalibrationRoutine_VR()

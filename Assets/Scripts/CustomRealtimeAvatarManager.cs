@@ -75,30 +75,29 @@ public class CustomAvatarManager : MonoBehaviour
             return;
         }
 
-        // MR: parent under NetworkAvatars so all avatars live in shared anchor space.
         if (isMRScene)
         {
-            Transform netParent = GameObject.Find(networkAvatarsObjectName)?.transform;
-            if (netParent == null)
+            // Robust: let SSA manager handle parenting when anchor becomes ready.
+            if (MRSharedAnchorManager.Instance != null)
             {
-                Debug.LogError($"[CustomAvatarManager] MR: Could not find '{networkAvatarsObjectName}'. Create NetworkSpaceRoot/{networkAvatarsObjectName}.");
+                MRSharedAnchorManager.Instance.RegisterAvatarForReparent(avatarGameObject.transform);
             }
             else
             {
-                avatarGameObject.transform.SetParent(netParent, worldPositionStays: false);
-                avatarGameObject.transform.localPosition = Vector3.zero;
-                avatarGameObject.transform.localRotation = Quaternion.identity;
-                avatarGameObject.transform.localScale = Vector3.one;
+                // If SSA not initialized yet, do nothing here.
+                // The avatar will be reparented once SSA exists and scans pending avatars,
+                // OR you can keep it under scene root temporarily.
+                avatarGameObject.transform.SetParent(null, true);
             }
         }
 
-        // Ownership for networked transforms
         RealtimeView avatarRealtimeView = avatarGameObject.GetComponent<RealtimeView>();
         if (avatarRealtimeView != null)
             RequestOwnershipOfAvatarAndChildren(avatarRealtimeView);
         else
             Debug.LogError("[CustomAvatarManager] RealtimeView not found on the avatar prefab root.");
     }
+
 
     private GameObject GetPrefabForClientID(int clientID)
     {
