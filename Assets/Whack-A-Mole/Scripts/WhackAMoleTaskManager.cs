@@ -70,21 +70,25 @@ public class WhackAMoleTaskManager : MonoBehaviour
 
     private IEnumerator BootFlow()
     {
-        // Wait realtime
         while (realtime == null)
         {
             realtime = FindObjectOfType<Realtime>();
             yield return null;
         }
 
-        // Wait until connected (clientID becomes valid)
         while (realtime.clientID < 0)
             yield return null;
+
+        // FIX:  Wait for MR anchor before touching gameplay
+        if (MRSharedAnchorManager.Instance != null &&
+            MRSharedAnchorManager.Instance.isMRScene)
+        {
+            yield return new WaitUntil(() => MRSharedAnchorManager.Instance.AnchorReady);
+        }
 
         isAuthorityHost = (realtime.clientID == 0);
         Log($"Connected. cid={realtime.clientID} authorityHost={isAuthorityHost}");
 
-        // Logger can come later, do not block moles
         if (!disableLogging)
             StartCoroutine(InitLoggerAsync());
 
@@ -94,12 +98,10 @@ public class WhackAMoleTaskManager : MonoBehaviour
             yield break;
         }
 
-        // Wait for MoleOwnershipManager to request ownership and for Normcore to apply it
         yield return StartCoroutine(WaitForMoleModelsAndOwnership());
-
-        // Now deterministic init
         yield return StartCoroutine(ForceAllDownThenRaiseOne());
     }
+
 
     private IEnumerator InitLoggerAsync()
     {

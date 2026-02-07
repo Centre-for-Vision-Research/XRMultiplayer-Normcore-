@@ -28,6 +28,13 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     [Tooltip("Optional child under NetworkSpaceRoot where avatars should live.")]
     public string networkAvatarsChildName = "NetworkAvatars";
 
+    [Header("Stable Root (prevents anchor micro-wobble)")]
+    [Tooltip("If true, freeze the shared world under a StableSharedRoot created from the anchor pose once.")]
+    public bool useStableSharedRoot = true;
+
+    [Tooltip("Name of the StableSharedRoot GameObject created at runtime.")]
+    public string stableSharedRootName = "StableSharedRoot";
+
     [Header("Placement (Host)")]
     public bool hostPressAtoPlace = true;
     public KeyCode editorPlaceKey = KeyCode.P;
@@ -49,7 +56,12 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     public bool verboseLogs = true;
 
     public Transform AnchorTransform => _anchorGO != null ? _anchorGO.transform : null;
+
+    // AnchorReady means "shared world parent is ready" (anchor OR stable root depending on mode)
     public bool AnchorReady => _anchorReady;
+
+    // Optional: expose stable root if you want to debug or gate other scripts
+    public Transform StableRootTransform => _stableRootGO != null ? _stableRootGO.transform : null;
 
     public Transform NetworkAvatarsParent
     {
@@ -66,6 +78,10 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
 
     private GameObject _anchorGO;
     private OVRSpatialAnchor _anchor;
+
+    // NEW: stable shared root
+    private GameObject _stableRootGO;
+
     private bool _anchorReady = false;
     private bool _flowStarted = false;
 
@@ -96,7 +112,7 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         _rv = GetComponent<RealtimeView>();
         TryInitRightHand();
 
-        // Hide content until anchor is ready (prevents “world is headlocked” visuals when SSA did not run)
+        // Hide content until anchor is ready
         if (contentRoot != null) contentRoot.gameObject.SetActive(false);
 
         _realtime.didConnectToRoom += OnConnected;
@@ -158,12 +174,12 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             _pendingAvatars.RemoveAt(i);
         }
 
-        // Also reparent any already-spawned avatars in scene once (no repeated scan)
         var avatars = GameObject.FindGameObjectsWithTag(playerAvatarTag);
         foreach (var a in avatars)
         {
             Transform t = a.transform;
             if (t.parent == parent) continue;
+
             t.SetParent(parent, worldPositionStays: false);
             t.localPosition = Vector3.zero;
             t.localRotation = Quaternion.identity;
@@ -187,7 +203,6 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
 
         if (isHost && _rv != null) _rv.RequestOwnership();
 
-        // Host creates group UUID once
         if (isHost && string.IsNullOrEmpty(model.groupUuid))
         {
             model.groupUuid = Guid.NewGuid().ToString();
@@ -199,7 +214,6 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
 
         if (isHost)
         {
-            // Host: place + create + save (local ready even if alone)
             bool ok = await HostCreateAndSaveAsync();
             if (!ok)
             {
@@ -207,15 +221,13 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
                 return;
             }
 
-            BindContentUnderAnchorAndMarkReady();
+            BindContentUnderStableRootAndMarkReady();
             FlushPendingAvatars();
 
-            // Share only when peer exists (prevents ShareAsync failing in solo case)
             _ = HostWaitForPeerThenShareAsync();
             return;
         }
 
-        // Client: wait for host to share, then load+localize+bind
         bool clientOk = await ClientLoadLocalizeBindAsync();
         if (!clientOk)
         {
@@ -223,14 +235,12 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             return;
         }
 
-        BindContentUnderAnchorAndMarkReady();
+        BindContentUnderStableRootAndMarkReady();
         FlushPendingAvatars();
     }
 
     private bool IsHostByLowestClientID()
     {
-        // Simple + stable, available immediately.
-        // If your room always assigns 0 to first joiner, this is what you want.
         return _realtime != null && _realtime.clientID == 0;
     }
 
@@ -288,7 +298,7 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         Pose pose = ComputeDefaultTablePose();
 
         _anchorGO = Instantiate(sharedAnchorPrefab, pose.position, pose.rotation);
-        _anchorGO.transform.SetParent(null, true); // force scene root
+        _anchorGO.transform.SetParent(null, true);
 
         _anchor = _anchorGO.GetComponent<OVRSpatialAnchor>();
         if (_anchor == null)
@@ -324,7 +334,6 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             "SaveAnchorsAsync"
         );
 
-
         if (!saved) return false;
 
         if (verboseLogs)
@@ -350,7 +359,6 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             await Task.Delay(250);
         }
 
-        // Share now
         Guid groupGuid;
         try { groupGuid = Guid.Parse(model.groupUuid); }
         catch
@@ -366,7 +374,6 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             shareRetries,
             "ShareAsync"
         );
-
 
         if (!shared)
         {
@@ -465,7 +472,10 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         return true;
     }
 
-    private void BindContentUnderAnchorAndMarkReady()
+    // ----------------------------
+    // Stable root binding (NEW)
+    // ----------------------------
+    private void BindContentUnderStableRootAndMarkReady()
     {
         if (_anchorGO == null || _anchor == null || !_anchor.Created)
         {
@@ -473,9 +483,30 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             return;
         }
 
+        Transform parentForWorld = _anchorGO.transform;
+
+        if (useStableSharedRoot)
+        {
+            if (_stableRootGO == null)
+            {
+                _stableRootGO = new GameObject(stableSharedRootName);
+                _stableRootGO.transform.SetParent(null, true);
+
+                // Freeze world at the current localized anchor pose (host and client)
+                _stableRootGO.transform.position = _anchorGO.transform.position;
+                _stableRootGO.transform.rotation = _anchorGO.transform.rotation;
+                _stableRootGO.transform.localScale = Vector3.one;
+
+                if (verboseLogs)
+                    Debug.Log("[MRSharedAnchorManager] StableSharedRoot created and frozen from anchor pose.");
+            }
+
+            parentForWorld = _stableRootGO.transform;
+        }
+
         if (contentRoot != null)
         {
-            contentRoot.SetParent(_anchorGO.transform, worldPositionStays: false);
+            contentRoot.SetParent(parentForWorld, worldPositionStays: false);
             contentRoot.localPosition = Vector3.zero;
             contentRoot.localRotation = Quaternion.identity;
             contentRoot.gameObject.SetActive(true);
@@ -483,7 +514,7 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
 
         if (networkSpaceRoot != null)
         {
-            networkSpaceRoot.SetParent(_anchorGO.transform, worldPositionStays: false);
+            networkSpaceRoot.SetParent(parentForWorld, worldPositionStays: false);
             networkSpaceRoot.localPosition = Vector3.zero;
             networkSpaceRoot.localRotation = Quaternion.identity;
         }
@@ -491,7 +522,7 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         _anchorReady = true;
 
         if (verboseLogs)
-            Debug.Log("[MRSharedAnchorManager] Anchor ready. Content/network are under anchor.");
+            Debug.Log("[MRSharedAnchorManager] Anchor ready. Content/network are under stable shared root.");
     }
 
     // ----------------------------
@@ -589,5 +620,4 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         var result = await OVRSpatialAnchor.ShareAsync(anchors, groupGuid);
         return result.Success;
     }
-
 }

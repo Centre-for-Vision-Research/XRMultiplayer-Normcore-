@@ -11,8 +11,7 @@ public class MoleController : RealtimeComponent<MoleModel>
     public float holdMax = 0.50f;
 
     [Header("Debug")]
-    public bool verboseLogs = true;
-    public float logEverySeconds = 1.0f;
+    public bool verboseLogs = false;
 
     // cached poses
     private Vector3 visibleLocalPos;
@@ -24,86 +23,79 @@ public class MoleController : RealtimeComponent<MoleModel>
     private Collider col;
     private WhackAMoleTaskManager manager;
 
-    private enum State { Hidden = 0, PoppingUp = 1, Holding = 2, GoingDown = 3, InitialUp = 4 }
+    private enum State
+    {
+        Hidden = 0,
+        PoppingUp = 1,
+        Holding = 2,
+        GoingDown = 3,
+        InitialUp = 4
+    }
+
     private State state = State.Hidden;
 
-    public bool IsUp => state == State.PoppingUp || state == State.Holding || state == State.InitialUp;
-
-    private float _nextLogTime;
+    public bool IsUp =>
+        state == State.PoppingUp ||
+        state == State.Holding ||
+        state == State.InitialUp;
 
     private void Awake()
     {
         col = GetComponent<Collider>();
         manager = FindObjectOfType<WhackAMoleTaskManager>();
 
-        // Scene starts UP in your case. Cache current as visible.
         visibleLocalPos = transform.localPosition;
         hiddenLocalPos = visibleLocalPos + new Vector3(0f, 0f, -popDistance);
+
+        // Safe default
+        state = State.Hidden;
+        ApplyVisualImmediate();
     }
 
     private void Start()
     {
-        // IMPORTANT:
-        // Do NOT force-hide here. It races with TaskManager boot.
-        // Instead, if model exists, snap to model; otherwise do a local-only safe hide.
-        if (model != null)
-        {
-            ApplyFromModel(immediate: true);
-        }
-        else
-        {
-            // model not bound yet, keep it locally hidden so visuals are not “all up”
-            ForceHiddenLocal_NoPublish();
-        }
-
-        ThrottledStatus("Start()");
+        // DO NOT publish or force anything here
+        // Just stay hidden until authority tells us otherwise
+        ApplyVisualImmediate();
     }
 
     protected override void OnRealtimeModelReplaced(MoleModel prev, MoleModel curr)
     {
         if (prev != null)
         {
-            prev.stateDidChange -= OnStateChanged;
-            prev.isUpDidChange -= OnIsUpChanged;
+            prev.stateDidChange -= OnModelStateChanged;
         }
 
         if (curr != null)
         {
-            curr.stateDidChange += OnStateChanged;
-            curr.isUpDidChange += OnIsUpChanged;
+            curr.stateDidChange += OnModelStateChanged;
 
-            // Late joiners or late binding: snap immediately
-            ApplyFromModel(immediate: true);
-            ThrottledStatus("ModelReplaced()");
+            // Snap to model immediately (late join safe)
+            state = (State)curr.state;
+            ApplyVisualImmediate();
         }
     }
 
     private void OnDestroy()
     {
         if (model != null)
-        {
-            model.stateDidChange -= OnStateChanged;
-            model.isUpDidChange -= OnIsUpChanged;
-        }
+            model.stateDidChange -= OnModelStateChanged;
     }
 
-    private void OnStateChanged(MoleModel m, int value)
+    private void OnModelStateChanged(MoleModel m, int newState)
     {
-        ApplyFromModel(immediate: false);
+        state = (State)newState;
+        // visuals will interpolate in Update
     }
 
-    private void OnIsUpChanged(MoleModel m, bool value)
-    {
-        col.enabled = value;
-    }
+    // =========================================================
+    // AUTHORITY CHECKS
+    // =========================================================
 
-    // ------------------------------------------------------------
-    // Authority: in your setup, clientID==0 is authority
-    // ------------------------------------------------------------
     private bool IsAuthority()
     {
-        var r = FindObjectOfType<Realtime>();
-        return r != null && r.clientID == 0;
+        return WhackAMoleTaskManager.Instance != null &&
+               WhackAMoleTaskManager.Instance.IsHost();
     }
 
     private bool IsOwnedLocally()
@@ -112,56 +104,62 @@ public class MoleController : RealtimeComponent<MoleModel>
         return view != null && view.isOwnedLocallySelf;
     }
 
-    private void Publish()
+    private void PublishState()
     {
         if (!IsAuthority()) return;
         if (!IsOwnedLocally()) return;
         if (model == null) return;
 
         model.state = (int)state;
-        model.isUp = IsUp;
-
-        ThrottledStatus($"Publish -> state={(int)state} isUp={IsUp}");
     }
 
-    private void ApplyFromModel(bool immediate)
+    // =========================================================
+    // COLLIDER IS DERIVED FROM STATE ONLY (IMPORTANT)
+    // =========================================================
+
+    private void RefreshCollider()
     {
-        if (model == null) return;
-
-        state = (State)model.state;
-        col.enabled = model.isUp;
-
-        if (immediate)
-        {
-            transform.localPosition = (state == State.Hidden) ? hiddenLocalPos : visibleLocalPos;
-        }
+        col.enabled = IsUp;
     }
 
-    // ------------------------------------------------------------
-    // Local-only (no publish) helpers for startup safety
-    // ------------------------------------------------------------
-    private void ForceHiddenLocal_NoPublish()
+    // =========================================================
+    // VISUALS
+    // =========================================================
+
+    private void ApplyVisualImmediate()
     {
-        state = State.Hidden;
-        timer = 0f;
-        transform.localPosition = hiddenLocalPos;
-        col.enabled = false;
+        transform.localPosition =
+            (state == State.Hidden) ? hiddenLocalPos : visibleLocalPos;
+
+        RefreshCollider();
     }
 
-    // ------------------------------------------------------------
-    // API called by TaskManager/Spawner (authority only)
-    // Names match what your TaskManager expects.
-    // ------------------------------------------------------------
+    private void AnimateToward(State target)
+    {
+        Vector3 targetPos =
+            (target == State.Hidden) ? hiddenLocalPos : visibleLocalPos;
+
+        transform.localPosition = Vector3.MoveTowards(
+            transform.localPosition,
+            targetPos,
+            moveSpeed * Time.deltaTime
+        );
+
+        RefreshCollider();
+    }
+
+    // =========================================================
+    // PUBLIC API CALLED BY TASK MANAGER / SPAWNER
+    // =========================================================
+
     public void HideImmediate_Authority()
     {
         if (!IsAuthority() || !IsOwnedLocally() || model == null) return;
 
         state = State.Hidden;
         timer = 0f;
-        transform.localPosition = hiddenLocalPos;
-        col.enabled = false;
-
-        Publish();
+        ApplyVisualImmediate();
+        PublishState();
     }
 
     public void ShowImmediate_Authority()
@@ -170,10 +168,8 @@ public class MoleController : RealtimeComponent<MoleModel>
 
         state = State.InitialUp;
         timer = 0f;
-        transform.localPosition = visibleLocalPos;
-        col.enabled = true;
-
-        Publish();
+        ApplyVisualImmediate();
+        PublishState();
     }
 
     public void Pop_Authority()
@@ -185,9 +181,13 @@ public class MoleController : RealtimeComponent<MoleModel>
         timer = 0f;
         state = State.PoppingUp;
 
-        Publish();
+        PublishState();
     }
 
+    /// <summary>
+    /// Called by ANY client hit.
+    /// Authority validates and resolves.
+    /// </summary>
     public bool Hit_Authority()
     {
         if (!IsAuthority() || !IsOwnedLocally() || model == null) return false;
@@ -197,19 +197,18 @@ public class MoleController : RealtimeComponent<MoleModel>
         return true;
     }
 
-    // ------------------------------------------------------------
-    // Simulation
-    // Everyone animates locally from model.state.
-    // Authority advances state machine + publishes.
-    // ------------------------------------------------------------
+    // =========================================================
+    // UPDATE LOOP
+    // =========================================================
+
     private void Update()
     {
         if (model == null) return;
 
-        // Non-authority or not-owned: just animate toward implied pose
+        // Non-authority just animates toward model state
         if (!IsAuthority() || !IsOwnedLocally())
         {
-            AnimateTowardModel((State)model.state);
+            AnimateToward((State)model.state);
             return;
         }
 
@@ -220,18 +219,17 @@ public class MoleController : RealtimeComponent<MoleModel>
                 break;
 
             case State.InitialUp:
-                // keep model fresh
-                Publish();
+                // stays until first hit
                 break;
 
             case State.PoppingUp:
-                MoveTowards(visibleLocalPos, () =>
+                AnimateToward(State.PoppingUp);
+                if (Vector3.Distance(transform.localPosition, visibleLocalPos) < 0.0001f)
                 {
-                    col.enabled = true;
-                    timer = 0f;
                     state = State.Holding;
-                    Publish();
-                });
+                    timer = 0f;
+                    PublishState();
+                }
                 break;
 
             case State.Holding:
@@ -239,67 +237,22 @@ public class MoleController : RealtimeComponent<MoleModel>
                 if (timer >= currentHoldDuration)
                 {
                     state = State.GoingDown;
-                    Publish();
+                    PublishState();
                 }
                 break;
 
             case State.GoingDown:
-                MoveTowards(hiddenLocalPos, () =>
+                AnimateToward(State.Hidden);
+                if (Vector3.Distance(transform.localPosition, hiddenLocalPos) < 0.0001f)
                 {
-                    col.enabled = false;
-                    timer = 0f;
                     state = State.Hidden;
-                    Publish();
+                    PublishState();
                     manager?.OnMoleMissed(this);
-                });
+                }
                 break;
         }
-
-        ThrottledStatus("Update()");
     }
 
-    private void AnimateTowardModel(State targetState)
-    {
-        Vector3 targetPos = (targetState == State.Hidden) ? hiddenLocalPos : visibleLocalPos;
-
-        transform.localPosition = Vector3.MoveTowards(
-            transform.localPosition,
-            targetPos,
-            moveSpeed * Time.deltaTime
-        );
-    }
-
-    private void MoveTowards(Vector3 target, System.Action onArrive)
-    {
-        transform.localPosition = Vector3.MoveTowards(
-            transform.localPosition,
-            target,
-            moveSpeed * Time.deltaTime
-        );
-
-        if (Vector3.Distance(transform.localPosition, target) < 0.0001f)
-        {
-            transform.localPosition = target;
-            onArrive?.Invoke();
-        }
-    }
-
+    // =========================================================
     public bool HasModel() => model != null;
-
-    private void ThrottledStatus(string tag)
-    {
-        if (!verboseLogs) return;
-        if (Time.time < _nextLogTime) return;
-        _nextLogTime = Time.time + logEverySeconds;
-
-        var r = FindObjectOfType<Realtime>();
-        int cid = r != null ? r.clientID : -99;
-        bool auth = IsAuthority();
-        bool owned = IsOwnedLocally();
-
-        int mState = model != null ? model.state : -1;
-        bool mUp = model != null && model.isUp;
-
-        Debug.Log($"[MoleController:{name}] {tag} cid={cid} auth={auth} owned={owned} localState={(int)state} modelState={mState} modelUp={mUp} col={col.enabled}");
-    }
 }
