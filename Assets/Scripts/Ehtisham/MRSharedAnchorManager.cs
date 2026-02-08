@@ -19,21 +19,59 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     [Header("References")]
     public GameObject sharedAnchorPrefab;
 
-    [Tooltip("Scene content root (table, holes, moles). Will be parented under the resolved anchor.")]
+    [Tooltip("Scene content root (table, holes, moles). Will be parented under the resolved anchor root.")]
     public Transform contentRoot;
 
-    [Tooltip("Empty GameObject used as parent for networked avatars. Will be parented under the resolved anchor.")]
+    [Tooltip("Empty GameObject used as parent for networked avatars. Will be parented under the resolved anchor root.")]
     public Transform networkSpaceRoot;
 
     [Tooltip("Optional child under NetworkSpaceRoot where avatars should live.")]
     public string networkAvatarsChildName = "NetworkAvatars";
 
     [Header("Stable Root (prevents anchor micro-wobble)")]
-    [Tooltip("If true, freeze the shared world under a StableSharedRoot created from the anchor pose once.")]
+    [Tooltip("If true, parent content/network under a StableSharedRoot. In Option 2, this root can follow the live anchor with smoothing.")]
     public bool useStableSharedRoot = true;
 
     [Tooltip("Name of the StableSharedRoot GameObject created at runtime.")]
     public string stableSharedRootName = "StableSharedRoot";
+
+    [Header("Option 2: Dynamic correction (recommended)")]
+    [Tooltip("If true and useStableSharedRoot is enabled, StableSharedRoot will follow the live anchor pose with smoothing + snap correction.")]
+    public bool followAnchorContinuously = true;
+
+    [Tooltip("Seconds. Larger means smoother but slower corrections.")]
+    public float positionSmoothTime = 0.25f;
+
+    [Tooltip("Seconds. Larger means smoother but slower corrections.")]
+    public float rotationSmoothTime = 0.25f;
+
+    [Tooltip("Meters. Ignore position changes smaller than this (jitter deadzone).")]
+    public float positionDeadzoneMeters = 0.002f; // 2 mm
+
+    [Tooltip("Degrees. Ignore rotation changes smaller than this (jitter deadzone).")]
+    public float rotationDeadzoneDeg = 0.20f;
+
+    [Tooltip("Meters. If StableSharedRoot differs from anchor more than this, snap (discrete correction).")]
+    public float snapPositionMeters = 0.08f; // 8 cm
+
+    [Tooltip("Degrees. If StableSharedRoot differs from anchor more than this, snap (discrete correction).")]
+    public float snapRotationDeg = 8f;
+
+    [Header("Anchor stability gate (improves initial alignment)")]
+    [Tooltip("Wait until the anchor pose settles before enabling content/network (best effort, with timeout).")]
+    public bool waitForAnchorStability = true;
+
+    [Tooltip("Meters. Pose is considered stable if per-sample movement is below this.")]
+    public float stablePosEpsilonMeters = 0.003f; // 3 mm
+
+    [Tooltip("Degrees. Pose is considered stable if per-sample rotation change is below this.")]
+    public float stableRotEpsilonDeg = 0.35f;
+
+    [Tooltip("Seconds. Need this much continuous stability to pass the gate.")]
+    public float requiredStableSeconds = 0.75f;
+
+    [Tooltip("Seconds. Max time to wait for stability before proceeding anyway.")]
+    public float maxWaitForStabilitySeconds = 8f;
 
     [Header("Placement (Host)")]
     public bool hostPressAtoPlace = true;
@@ -46,6 +84,13 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     public float peerScanIntervalSeconds = 0.25f;
     public float maxWaitForPeerSeconds = 120f;
 
+    [Header("Late joiner fix (reparent remote avatars that spawn after AnchorReady)")]
+    [Tooltip("If true, after AnchorReady this script will keep scanning for newly spawned avatars and reparent them.")]
+    public bool keepReparentingAfterAnchorReady = true;
+
+    [Tooltip("How often to scan for newly spawned avatars after AnchorReady.")]
+    public float reparentScanIntervalSeconds = 0.25f;
+
     [Header("Robustness")]
     public int stabilizationDelayMs = 1500;
     public int saveRetries = 4;
@@ -57,10 +102,9 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
 
     public Transform AnchorTransform => _anchorGO != null ? _anchorGO.transform : null;
 
-    // AnchorReady means "shared world parent is ready" (anchor OR stable root depending on mode)
+    // AnchorReady means "shared world root is ready" (anchor OR stable root depending on mode)
     public bool AnchorReady => _anchorReady;
 
-    // Optional: expose stable root if you want to debug or gate other scripts
     public Transform StableRootTransform => _stableRootGO != null ? _stableRootGO.transform : null;
 
     public Transform NetworkAvatarsParent
@@ -79,7 +123,6 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     private GameObject _anchorGO;
     private OVRSpatialAnchor _anchor;
 
-    // NEW: stable shared root
     private GameObject _stableRootGO;
 
     private bool _anchorReady = false;
@@ -89,6 +132,7 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     private bool _lastAState = false;
 
     private readonly List<Transform> _pendingAvatars = new List<Transform>();
+    private float _nextReparentScanTime = 0f;
 
     private const string SPATIAL_PERMISSION = "com.oculus.permission.USE_SCENE";
 
@@ -121,6 +165,26 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     private void OnDestroy()
     {
         if (_realtime != null) _realtime.didConnectToRoom -= OnConnected;
+    }
+
+    private void Update()
+    {
+        if (!isMRScene) return;
+
+        // Option 2: drive StableSharedRoot every frame once ready
+        if (_anchorReady && useStableSharedRoot && followAnchorContinuously)
+        {
+            DriveStableRootTowardsAnchor(Time.deltaTime);
+        }
+
+        // Late joiner reparent scan
+        if (!_anchorReady) return;
+        if (!keepReparentingAfterAnchorReady) return;
+
+        if (Time.time < _nextReparentScanTime) return;
+        _nextReparentScanTime = Time.time + Mathf.Max(0.05f, reparentScanIntervalSeconds);
+
+        ReparentAllTaggedAvatarsIfNeeded();
     }
 
     private void OnConnected(Realtime room)
@@ -174,16 +238,29 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             _pendingAvatars.RemoveAt(i);
         }
 
+        ReparentAllTaggedAvatarsIfNeeded();
+    }
+
+    private void ReparentAllTaggedAvatarsIfNeeded()
+    {
+        Transform parent = NetworkAvatarsParent;
+        if (parent == null) return;
+
         var avatars = GameObject.FindGameObjectsWithTag(playerAvatarTag);
-        foreach (var a in avatars)
+        for (int i = 0; i < avatars.Length; i++)
         {
-            Transform t = a.transform;
-            if (t.parent == parent) continue;
+            Transform t = avatars[i] != null ? avatars[i].transform : null;
+            if (t == null) continue;
+
+            if (t.IsChildOf(parent)) continue;
 
             t.SetParent(parent, worldPositionStays: false);
             t.localPosition = Vector3.zero;
             t.localRotation = Quaternion.identity;
             t.localScale = Vector3.one;
+
+            if (verboseLogs)
+                Debug.Log($"[MRSharedAnchorManager] Reparented late/spawned avatar '{t.name}' under NetworkAvatarsParent.");
         }
     }
 
@@ -221,6 +298,14 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
                 return;
             }
 
+            // Option 2: wait for anchor pose to settle before enabling content/network
+            if (waitForAnchorStability)
+            {
+                bool stable = await WaitForAnchorStablePoseAsync(maxWaitForStabilitySeconds);
+                if (verboseLogs)
+                    Debug.Log($"[MRSharedAnchorManager] Host stability gate result: {stable}");
+            }
+
             BindContentUnderStableRootAndMarkReady();
             FlushPendingAvatars();
 
@@ -233,6 +318,14 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         {
             Debug.LogError("[MRSharedAnchorManager] Client failed to load/localize/bind shared anchor.");
             return;
+        }
+
+        // Option 2: wait for anchor pose to settle before enabling content/network
+        if (waitForAnchorStability)
+        {
+            bool stable = await WaitForAnchorStablePoseAsync(maxWaitForStabilitySeconds);
+            if (verboseLogs)
+                Debug.Log($"[MRSharedAnchorManager] Client stability gate result: {stable}");
         }
 
         BindContentUnderStableRootAndMarkReady();
@@ -322,7 +415,7 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         model.stage = 1;
 
         if (verboseLogs)
-            Debug.Log($"[MRSharedAnchorManager] Host created anchor. uuid={model.anchorUuid}. Stabilizing...");
+            Debug.Log($"[MRSharedAnchorManager] Host created anchor. uuid={model.anchorUuid}. Initial settle delay...");
 
         await Task.Delay(Mathf.Max(0, stabilizationDelayMs));
 
@@ -473,7 +566,7 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
     }
 
     // ----------------------------
-    // Stable root binding (NEW)
+    // Stable root binding
     // ----------------------------
     private void BindContentUnderStableRootAndMarkReady()
     {
@@ -491,17 +584,17 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
             {
                 _stableRootGO = new GameObject(stableSharedRootName);
                 _stableRootGO.transform.SetParent(null, true);
-
-                // Freeze world at the current localized anchor pose (host and client)
-                _stableRootGO.transform.position = _anchorGO.transform.position;
-                _stableRootGO.transform.rotation = _anchorGO.transform.rotation;
-                _stableRootGO.transform.localScale = Vector3.one;
-
-                if (verboseLogs)
-                    Debug.Log("[MRSharedAnchorManager] StableSharedRoot created and frozen from anchor pose.");
             }
 
+            // Initialize stable root from current anchor pose
+            _stableRootGO.transform.position = _anchorGO.transform.position;
+            _stableRootGO.transform.rotation = _anchorGO.transform.rotation;
+            _stableRootGO.transform.localScale = Vector3.one;
+
             parentForWorld = _stableRootGO.transform;
+
+            if (verboseLogs)
+                Debug.Log("[MRSharedAnchorManager] StableSharedRoot initialized from anchor pose.");
         }
 
         if (contentRoot != null)
@@ -520,9 +613,101 @@ public class MRSharedAnchorManager : RealtimeComponent<MRSharedAnchorModel>
         }
 
         _anchorReady = true;
+        _nextReparentScanTime = Time.time; // start scanning immediately
 
         if (verboseLogs)
-            Debug.Log("[MRSharedAnchorManager] Anchor ready. Content/network are under stable shared root.");
+            Debug.Log("[MRSharedAnchorManager] Anchor ready. Content/network are under shared root.");
+    }
+
+    // ----------------------------
+    // Option 2: stability gate + dynamic correction
+    // ----------------------------
+    private async Task<bool> WaitForAnchorStablePoseAsync(float timeoutSeconds)
+    {
+        if (_anchorGO == null) return false;
+
+        float startTime = Time.time;
+        float stableAccum = 0f;
+
+        Vector3 prevPos = _anchorGO.transform.position;
+        Quaternion prevRot = _anchorGO.transform.rotation;
+        float prevT = Time.time;
+
+        while (Time.time - startTime < Mathf.Max(0.1f, timeoutSeconds))
+        {
+            await Task.Yield();
+
+            float nowT = Time.time;
+            float dt = Mathf.Max(0.0001f, nowT - prevT);
+            prevT = nowT;
+
+            Vector3 pos = _anchorGO.transform.position;
+            Quaternion rot = _anchorGO.transform.rotation;
+
+            float dp = Vector3.Distance(pos, prevPos);
+            float dr = Quaternion.Angle(rot, prevRot);
+
+            prevPos = pos;
+            prevRot = rot;
+
+            if (dp <= stablePosEpsilonMeters && dr <= stableRotEpsilonDeg)
+            {
+                stableAccum += dt;
+                if (stableAccum >= requiredStableSeconds)
+                    return true;
+            }
+            else
+            {
+                stableAccum = 0f;
+            }
+        }
+
+        if (verboseLogs)
+            Debug.LogWarning("[MRSharedAnchorManager] Stability gate timed out. Proceeding with best current pose.");
+
+        return false;
+    }
+
+    private void DriveStableRootTowardsAnchor(float dt)
+    {
+        if (_stableRootGO == null || _anchorGO == null) return;
+
+        Transform sr = _stableRootGO.transform;
+        Transform a = _anchorGO.transform;
+
+        Vector3 targetPos = a.position;
+        Quaternion targetRot = a.rotation;
+
+        float posErr = Vector3.Distance(sr.position, targetPos);
+        float rotErr = Quaternion.Angle(sr.rotation, targetRot);
+
+        // If anchor has significantly corrected, snap (discrete correction)
+        if (posErr > snapPositionMeters || rotErr > snapRotationDeg)
+        {
+            sr.position = targetPos;
+            sr.rotation = targetRot;
+
+            if (verboseLogs)
+                Debug.LogWarning($"[MRSharedAnchorManager] Snap correction applied. posErr={posErr:F3}m rotErr={rotErr:F2}deg");
+
+            return;
+        }
+
+        // Ignore tiny jitter
+        if (posErr < positionDeadzoneMeters && rotErr < rotationDeadzoneDeg)
+            return;
+
+        float aPos = ExpAlpha(dt, positionSmoothTime);
+        float aRot = ExpAlpha(dt, rotationSmoothTime);
+
+        sr.position = Vector3.Lerp(sr.position, targetPos, aPos);
+        sr.rotation = Quaternion.Slerp(sr.rotation, targetRot, aRot);
+    }
+
+    private float ExpAlpha(float dt, float timeConstant)
+    {
+        if (timeConstant <= 0f) return 1f;
+        return 1f - Mathf.Exp(-dt / timeConstant);
     }
 
     // ----------------------------
