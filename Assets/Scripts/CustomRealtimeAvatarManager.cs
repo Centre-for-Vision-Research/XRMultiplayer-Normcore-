@@ -18,8 +18,6 @@ public class CustomAvatarManager : MonoBehaviour
     [Tooltip("Enable ONLY in MR scenes.")]
     public bool isMRScene = false;
 
-    [Header("VR Spawn (only affects initial placement, local IK will override)")]
-    public float secondPlayerZOffset = 2.2f;
 
     [Header("MR Pivot Names (must match prefab children exactly)")]
     public string leftPivotName = "LeftGripPivot";
@@ -67,13 +65,6 @@ public class CustomAvatarManager : MonoBehaviour
         // Initial spawn pose
         Vector3 spawnPos = Vector3.zero;
         Quaternion spawnRot = Quaternion.identity;
-
-        // VR: place second player 2.2m forward and rotate 180 degrees
-        if (!isMRScene && (realtime.clientID % 2 == 1))
-        {
-            spawnPos = new Vector3(0f, 0f, secondPlayerZOffset);
-            spawnRot = Quaternion.Euler(0f, 180f, 0f);
-        }
 
         avatarGameObject = Realtime.Instantiate(
             selectedPrefab.name,

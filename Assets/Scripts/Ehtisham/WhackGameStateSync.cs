@@ -12,15 +12,18 @@ public class WhackGameStateSync : RealtimeComponent<WhackGameStateModel>
     private int _lastHostNowMs;
     private float _lastHostNowReceivedLocalTime;
 
+    private int _lastResolveEventId = -1;
+
     [Serializable]
     public struct ResolveInfo
     {
         public int eventId;
         public int seq;
         public int holeIndex;
-        public int type;      // 1 hit, 2 miss
-        public int byRole;    // 0 A, 1 B, -1
+        public int type;        // 1 hit, 2 miss
+        public int byRole;      // 0 A, 1 B, -1
         public int atHostMs;
+        public int byClientId;  // NEW: used to suppress echo FX on hitter client
     }
 
     private void Awake()
@@ -61,21 +64,22 @@ public class WhackGameStateSync : RealtimeComponent<WhackGameStateModel>
         _lastHostNowReceivedLocalTime = Time.realtimeSinceStartup;
     }
 
-    private void OnResolveEventIdChanged(WhackGameStateModel m, int newEventId)
+    private void OnResolveEventIdChanged(WhackGameStateModel m, int value)
     {
         if (m == null) return;
+        if (value <= _lastResolveEventId) return;
+        _lastResolveEventId = value;
 
-        ResolveInfo info = new ResolveInfo
+        ResolveEvent?.Invoke(new ResolveInfo
         {
-            eventId = newEventId,
+            eventId = m.resolveEventId,
+            type = m.resolveType,
             seq = m.resolveSeq,
             holeIndex = m.resolveHoleIndex,
-            type = m.resolveType,
             byRole = m.resolveByRole,
-            atHostMs = m.resolveAtHostMs
-        };
-
-        ResolveEvent?.Invoke(info);
+            atHostMs = m.resolveAtHostMs,
+            byClientId = m.resolveByClientId
+        });
     }
 
     // Clients estimate host time using last received hostNowMs + local elapsed
@@ -93,18 +97,16 @@ public class WhackGameStateSync : RealtimeComponent<WhackGameStateModel>
     public int CurrentHoleIndex => model != null ? model.currentHoleIndex : -1;
     public int MoleStartMs => model != null ? model.moleStartMs : 0;
     public int MoleEndMs => model != null ? model.moleEndMs : 0;
-
     public int GameStartMs => model != null ? model.gameStartMs : 0;
     public int GameEndMs => model != null ? model.gameEndMs : 0;
     public int ReturnToLobbyAtMs => model != null ? model.returnToLobbyAtMs : 0;
     public int Seed => model != null ? model.seed : 0;
-    
-
 
     // Authority-only setters (call from WhackGameController only)
     public void AuthoritySetHostNowMs(int v) { if (model != null) model.hostNowMs = v; }
     public void AuthoritySetSeed(int v) { if (model != null) model.seed = v; }
     public void AuthoritySetGameState(int v) { if (model != null) model.gameState = v; }
+
     public void AuthoritySetGameTimes(int startMs, int endMs, int returnMs)
     {
         if (model == null) return;
@@ -112,6 +114,7 @@ public class WhackGameStateSync : RealtimeComponent<WhackGameStateModel>
         model.gameEndMs = endMs;
         model.returnToLobbyAtMs = returnMs;
     }
+
     public void AuthorityScheduleMole(int seq, int holeIndex, int startMs, int endMs)
     {
         if (model == null) return;
@@ -120,7 +123,9 @@ public class WhackGameStateSync : RealtimeComponent<WhackGameStateModel>
         model.moleStartMs = startMs;
         model.moleEndMs = endMs;
     }
-    public void AuthorityEmitResolve(int eventId, int seq, int holeIndex, int type, int byRole, int atHostMs)
+
+    // UPDATED: includes byClientId
+    public void AuthorityEmitResolve(int eventId, int seq, int holeIndex, int type, int byRole, int atHostMs, int byClientId)
     {
         if (model == null) return;
         model.resolveEventId = eventId;
@@ -129,5 +134,8 @@ public class WhackGameStateSync : RealtimeComponent<WhackGameStateModel>
         model.resolveType = type;
         model.resolveByRole = byRole;
         model.resolveAtHostMs = atHostMs;
+        model.resolveByClientId = byClientId;
     }
+
+    public bool IsModelReady() => model != null;
 }

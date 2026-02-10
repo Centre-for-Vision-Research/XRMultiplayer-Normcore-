@@ -62,4 +62,8 @@ public partial class WhackGameStateModel
 
     [RealtimeProperty(16, true, true)]
     private int _resolveAtHostMs;
+
+    // NEW: which client actually caused the resolve (for echo suppression)
+    [RealtimeProperty(17, true, true)]
+    private int _resolveByClientId;
 }

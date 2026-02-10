@@ -1,10 +1,19 @@
 # ninja log v5
 55	3331	7919670129505039	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	706d8176770c7275
 41	3342	7919670129587088	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	343a87ac1a62da3e
-27	3351	7919670129686234	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	caf5c63726a951bf
-84	3372	7919670129962685	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	803d7c044621e79e
-1	3435	7919670130580253	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	25b8ad39385262fd
 99	3668	7919670132920166	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	1734bae96d791db6
+27	3351	7919670129686234	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	caf5c63726a951bf
+1	3435	7919670130580253	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	25b8ad39385262fd
+84	3372	7919670129962685	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	803d7c044621e79e
 69	3747	7919670133695029	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	1bd3e6ddb2ba8d37
 14	4139	7919670137533494	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	46695520afb5c785
 4145	4390	7919670140113554	D:/GitHub/XRMultiplayer-Normcore-/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/71166046/obj/arm64-v8a/libgame.so	9be66b8e9efc35bf
+16	2716	7924171110716990	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	343a87ac1a62da3e
+65	2720	7924171110747679	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	706d8176770c7275
+28	2771	7924171111267414	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	caf5c63726a951bf
+76	2785	7924171111379059	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	803d7c044621e79e
+44	2892	7924171112489755	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	25b8ad39385262fd
+97	3130	7924171114878867	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	1734bae96d791db6
+86	3177	7924171115329794	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	1bd3e6ddb2ba8d37
+55	3385	7924171116997185	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	46695520afb5c785
+3385	3699	7924171120547960	D:/GitHub/XRMultiplayer-Normcore-/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/71166046/obj/arm64-v8a/libgame.so	9be66b8e9efc35bf

@@ -6,6 +6,9 @@ public class MoleHitReceiver : MonoBehaviour
 {
     private MoleVisual _mole;
 
+    // local debounce to avoid double-trigger spam on the same mole+seq
+    private int _lastSeqSent = int.MinValue;
+
     private void Awake()
     {
         _mole = GetComponent<MoleVisual>();
@@ -13,14 +16,10 @@ public class MoleHitReceiver : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Only accept hits from local player's hammers
-        // We identify "local player" by finding a RealtimeView in the other collider's parent hierarchy
-        var view = other.GetComponentInParent<RealtimeView>();
-        if (view == null) return;
-        if (!view.isOwnedLocallySelf) return;
-
-        // Only accept if other collider is a hammer
         if (!other.CompareTag("Hammer")) return;
+
+        var view = other.GetComponentInParent<RealtimeView>();
+        if (view == null || !view.isOwnedLocallySelf) return;
 
         var input = view.GetComponent<WhackPlayerInput>();
         if (input == null) return;
@@ -28,19 +27,17 @@ public class MoleHitReceiver : MonoBehaviour
         var gs = WhackGameStateSync.Instance;
         if (gs == null) return;
 
-        // Must be the scheduled hole and correct seq
         int seq = gs.CurrentSeq;
         if (_mole.HoleIndex != gs.CurrentHoleIndex) return;
 
-        // Local immediate feel
-        _mole.PredictHideForSeq(seq, 0.25f);
+        Debug.Log($"[LOCAL HIT] moleIndex={_mole.HoleIndex} seq={seq} byCollider='{other.name}' pos={other.transform.position}");
 
-        // Send hit to authority through owned input model
+        _mole.PredictHideForSeq(seq, 0.25f);
+        _mole.PlayHitFx(isLocalHitter: true);
         input.TrySendHit(_mole.HoleIndex, seq);
 
-        // Local FX feel for hitter
-        _mole.PlayHitFx(isLocalHitter: true);
-
-        WhackHaptics.PulseBothHands();
+        var hand = other.GetComponent<HammerHand>();
+        if (hand != null) WhackHaptics.Pulse(hand.node, 0.75f, 0.08f);
     }
+
 }
