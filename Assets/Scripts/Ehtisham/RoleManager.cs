@@ -12,7 +12,6 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
     public float pollIntervalSeconds = 0.1f;
     public float logEverySeconds = 1.0f;
 
-    private bool rolesFinalized = false;
     private float _nextLogTime = 0f;
 
     private void Awake()
@@ -41,7 +40,11 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
 
     private IEnumerator RoleAssignmentLoop()
     {
-        while (!rolesFinalized)
+        // Wait until the model exists
+        yield return new WaitUntil(() => model != null);
+        yield return new WaitUntil(() => realtime != null && realtime.connected && realtime.clientID >= 0);
+
+        while (true)
         {
             yield return new WaitForSeconds(pollIntervalSeconds);
 
@@ -50,8 +53,7 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
             if (Time.time >= _nextLogTime)
             {
                 _nextLogTime = Time.time + logEverySeconds;
-                Log($"Polling owners=[{string.Join(",", clientIDs)}] " +
-                    $"teacher={SafeTeacher()} student={SafeStudent()} seed={SafeSeed()}");
+                Log($"Polling owners=[{string.Join(",", clientIDs)}] teacher={SafeTeacher()} student={SafeStudent()} seed={SafeSeed()}");
             }
 
             if (clientIDs.Count == 0)
@@ -62,59 +64,44 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
 
             // Only host writes to model
             if (realtime.clientID != hostID)
-            {
-                // Non-host just waits for model to update
-                if (IsDyadReady())
-                {
-                    rolesFinalized = true;
-                    Log("Detected finalized dyad from model.");
-                }
                 continue;
-            }
 
-            // ---------- SOLO MODE ----------
+            // SOLO: teacher is host, student is -1
             if (clientIDs.Count == 1)
             {
-                int soloID = clientIDs[0];
+                int teacherID = clientIDs[0];
 
-                if (model.teacherID != soloID || model.studentID != soloID)
+                bool changed =
+                    model.teacherID != teacherID ||
+                    model.studentID != -1;
+
+                if (changed)
                 {
-                    model.teacherID = soloID;
-                    model.studentID = soloID;   // placeholder
-                    model.commonSeed = 0;       // NOT finalized
+                    model.teacherID = teacherID;
+                    model.studentID = -1;          // IMPORTANT
                     model.currentHoleIndex = -1;
-
-                    Log($"SOLO MODE assigned. Teacher={soloID}. Waiting for peer.");
                 }
+
+                if (model.commonSeed == 0)
+                    model.commonSeed = Random.Range(1, 1000000);
 
                 continue;
             }
 
-            // ---------- DYAD MODE ----------
-            int teacherID = clientIDs[0];
-            int studentID = clientIDs[1];
+            // DYAD: first is teacher, second is student
+            int t = clientIDs[0];
+            int s = clientIDs[1];
 
-            bool alreadyFinal =
-                model.teacherID == teacherID &&
-                model.studentID == studentID &&
-                model.commonSeed != 0;
-
-            if (alreadyFinal)
+            bool rolesOk = (model.teacherID == t && model.studentID == s);
+            if (!rolesOk)
             {
-                rolesFinalized = true;
-                Log("Dyad already finalized.");
-                yield break;
+                model.teacherID = t;
+                model.studentID = s;
+                model.currentHoleIndex = -1;
             }
 
-            model.teacherID = teacherID;
-            model.studentID = studentID;
-            model.commonSeed = Random.Range(1, 1000000);
-            model.currentHoleIndex = -1;
-
-            rolesFinalized = true;
-
-            Log($"DYAD FINALIZED. Teacher={teacherID} Student={studentID} Seed={model.commonSeed}");
-            yield break;
+            if (model.commonSeed == 0)
+                model.commonSeed = Random.Range(1, 1000000);
         }
     }
 
@@ -139,17 +126,18 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
     // ---------------- Public API ----------------
 
     public bool IsTeacher(int clientID)
-        => model != null && model.teacherID == clientID;
+        => model != null && model.teacherID >= 0 && model.teacherID == clientID;
 
     public bool IsStudent(int clientID)
-        => model != null && model.studentID == clientID;
+        => model != null && model.studentID >= 0 && model.studentID == clientID;
 
     public bool IsSolo()
-        => model != null && model.teacherID == model.studentID;
+        => model != null && model.studentID < 0 && model.teacherID >= 0;
 
     public bool IsDyadReady()
         => model != null &&
-           model.teacherID != model.studentID &&
+           model.teacherID >= 0 &&
+           model.studentID >= 0 &&
            model.commonSeed != 0;
 
     public int GetTeacherID()
@@ -170,8 +158,6 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
             model.currentHoleIndex = index;
     }
 
-    // ---------------- Logging helpers ----------------
-
     private int SafeTeacher() => model != null ? model.teacherID : -999;
     private int SafeStudent() => model != null ? model.studentID : -999;
     private int SafeSeed() => model != null ? model.commonSeed : -999;
@@ -182,158 +168,3 @@ public class RoleManager : RealtimeComponent<RoleManagerModel>
         Debug.Log($"[RoleManager] cid={realtime.clientID} {msg}");
     }
 }
-
-
-
-
-
-//using System.Collections;
-//using System.Collections.Generic;
-//using UnityEngine;
-//using Normal.Realtime;
-
-//public class RoleManager : RealtimeComponent<RoleManagerModel>
-//{
-//    public static RoleManager Instance;
-
-//    private bool roleAssigned = false; // Prevent duplicate assignment
-
-//    void Awake()
-//    {
-//        if (Instance == null)
-//        {
-//            Instance = this;
-//            Debug.Log("[RoleManager] Instance created.");
-//        }
-//        else
-//        {
-//            Destroy(gameObject);
-//        }
-//    }
-
-//    void Start()
-//    {
-//        if (this.realtime == null)
-//        {
-//            Debug.LogError("[RoleManager] Realtime component not found in the scene.");
-//            return;
-//        }
-
-//        Debug.Log("[RoleManager] Starting role assignment coroutine.");
-//        StartCoroutine(WaitForPlayersAndAssignRoles());
-//    }
-
-//    private IEnumerator WaitForPlayersAndAssignRoles()
-//    {
-//        while (!roleAssigned)
-//        {
-//            yield return new WaitForSeconds(1.0f);
-
-//            List<int> clientIDs = new List<int>();
-
-//            // Find all avatars tagged PlayerAvatar
-//            foreach (GameObject avatar in GameObject.FindGameObjectsWithTag("PlayerAvatar"))
-//            {
-//                RealtimeView view = avatar.GetComponent<RealtimeView>();
-//                if (view != null && view.ownerIDInHierarchy >= 0)
-//                {
-//                    if (!clientIDs.Contains(view.ownerIDInHierarchy))
-//                    {
-//                        clientIDs.Add(view.ownerIDInHierarchy);
-//                    }
-//                }
-//            }
-
-//            if (clientIDs.Count < 2)
-//            {
-//                Debug.Log("[RoleManager] Waiting for 2 players to join...");
-//                continue;
-//            }
-
-//            // Only lowest clientID assigns roles
-//            int lowestClientID = Mathf.Min(client_toggle(clientIDs));
-//            if (this.realtime.clientID != lowestClientID)
-//            {
-//                Debug.Log("[RoleManager] Not master client. Waiting for host to assign roles.");
-//                yield break;
-//            }
-
-//            // Stop if already assigned
-//            if (model.teacherID != 0 || model.studentID != 0)
-//            {
-//                roleAssigned = true;
-//                Debug.Log("[RoleManager] Roles already assigned. Exiting.");
-//                yield break;
-//            }
-
-//            // Assign roles
-//            int teacherID = clientIDs[0];
-//            int studentID = clientIDs[1];
-
-//            model.teacherID = teacherID;
-//            model.studentID = studentID;
-
-//            int commonSeed = Random.Range(1, 1000000);
-//            model.commonSeed = commonSeed;
-//            model.currentHoleIndex = -1;
-
-//            roleAssigned = true;
-
-//            Debug.Log(
-//                $"[RoleManager] Roles assigned. " +
-//                $"TeacherID={teacherID}, StudentID={studentID}, CommonSeed={commonSeed}"
-//            );
-
-//            yield break;
-//        }
-//    }
-
-//    // ----------------------------------------------------------------
-//    // Public helpers (safe accessors)
-//    // ----------------------------------------------------------------
-//    public bool IsTeacher(int clientID)
-//    {
-//        return model != null && model.teacherID == clientID;
-//    }
-
-//    public bool IsStudent(int clientID)
-//    {
-//        return model != null && model.studentID == clientID;
-//    }
-
-//    public int GetTeacherID()
-//    {
-//        return model != null ? model.teacherID : 0;
-//    }
-
-//    public int GetStudentID()
-//    {
-//        return model != null ? model.studentID : 0;
-//    }
-
-//    public int GetCommonSeed()
-//    {
-//        return model != null ? model.commonSeed : 0;
-//    }
-
-//    public int GetCurrentHoleIndex()
-//    {
-//        return model != null ? model.currentHoleIndex : -1;
-//    }
-
-//    // Only whoever owns RoleManagerView should call this
-//    public void SetCurrentHoleIndex(int index)
-//    {
-//        if (model == null) return;
-//        model.currentHoleIndex = index;
-//    }
-
-//    // Utility
-//    private int[] client_toggle(List<int> list)
-//    {
-//        int[] arr = new int[list.Count];
-//        for (int i = 0; i < list.Count; i++)
-//            arr[i] = list[i];
-//        return arr;
-//    }
-//}

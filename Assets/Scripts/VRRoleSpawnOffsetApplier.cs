@@ -5,7 +5,7 @@ using Normal.Realtime;
 public class VRSpawnOffsetAfterLocalAvatar : MonoBehaviour
 {
     [Header("Assign in Inspector")]
-    public Transform playerRoot; // Player object that parents XROrigin
+    public Transform playerRoot;
 
     [Header("Student Offset")]
     public float studentZ = 2.2f;
@@ -24,22 +24,19 @@ public class VRSpawnOffsetAfterLocalAvatar : MonoBehaviour
             yield break;
         }
 
-        // Wait RoleManager
         yield return new WaitUntil(() => RoleManager.Instance != null);
 
-        // Wait Realtime connection
         var realtime = FindObjectOfType<Realtime>();
-        yield return new WaitUntil(() => realtime != null && realtime.clientID >= 0);
+        yield return new WaitUntil(() => realtime != null && realtime.connected && realtime.clientID >= 0);
 
-        // Wait until local avatar exists
+        // Wait for local avatar
         yield return new WaitUntil(LocalOwnedAvatarExists);
 
-        // Critical: let XR + IK finish one frame
-        yield return null;
+        // IMPORTANT: do not apply anything in solo
+        yield return new WaitUntil(() => RoleManager.Instance.IsDyadReady());
 
         int cid = realtime.clientID;
 
-        // STRICT: student only
         if (!RoleManager.Instance.IsStudent(cid))
         {
             if (verboseLogs)
@@ -47,7 +44,8 @@ public class VRSpawnOffsetAfterLocalAvatar : MonoBehaviour
             yield break;
         }
 
-        // Apply student pose
+        yield return null; // let XR settle one frame
+
         Vector3 p = playerRoot.position;
         playerRoot.position = new Vector3(0f, p.y, studentZ);
         playerRoot.rotation = Quaternion.Euler(0f, studentYaw, 0f);

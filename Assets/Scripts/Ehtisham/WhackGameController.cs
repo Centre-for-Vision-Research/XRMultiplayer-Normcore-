@@ -14,13 +14,15 @@ public class WhackGameController : MonoBehaviour
     [Header("Timings (seconds)")]
     public float spawnMin = 0.20f;
     public float spawnMax = 0.40f;
-    public float holdMin = 0.20f;
-    public float holdMax = 0.50f;
+    public float holdMin  = 0.20f;
+    public float holdMax  = 0.50f;
 
     [Header("Block Settings")]
     public float blockDurationSeconds = 120f;
-    public int leadTimeMs = 150;
+    public int leadTimeMs = 250;
     public int postGameDelayMs = 1500;
+
+    [Header("Return")]
     public bool autoReturnToLobby = true;
     public string lobbySceneName = "LobbyAvtrs";
 
@@ -28,50 +30,87 @@ public class WhackGameController : MonoBehaviour
     public float nearThreshold = 0.18f;
     public float collisionThreshold = 0.08f;
 
+    private bool _sessionStarted = false;   // becomes true once we ever enter state 2 this session
+
+
     [Header("Debug")]
     public bool verboseLogs = true;
 
     private Realtime _realtime;
     private WhackGameStateSync _gs;
+    private RealtimeView _stateView;
+
+    private System.Random _rng;
 
     private bool _isAuthority = false;
-    private System.Random _rng;
-    private bool _initialized = false;
+    private bool _authorityInitDone = false;
 
     private readonly Dictionary<int, MoleVisual> _molesByIndex = new Dictionary<int, MoleVisual>();
     private readonly Dictionary<int, WhackPlayerInput> _inputsByOwner = new Dictionary<int, WhackPlayerInput>();
 
+    private readonly HashSet<int> _seenResolveIds = new HashSet<int>();
+    private readonly Queue<int> _seenResolveQueue = new Queue<int>();
+    private const int SeenResolveCapacity = 96;
+
     private int _resolveEventCounter = 0;
+    private int _lastResolvedSeq = -1;
+    private int _lastMissSeq = -1;
+    private readonly Dictionary<int, int> _lastAcceptedSeqByClient = new Dictionary<int, int>();
 
     private string _dyadId = "UnknownDyad";
     private string _condition = "Unknown";
-    private bool _countedStartHit = false;
 
-    private int _hitsA = 0;
-    private int _hitsB = 0;
-    private int _missesA = 0;
-    private int _missesB = 0;
-    private int _nearEvents = 0;
-    private int _collisionEvents = 0;
-    private int _crossHitAonB = 0;
-    private int _crossHitBonA = 0;
+    private int _hitsA = 0, _hitsB = 0;
+    private int _missesA = 0, _missesB = 0;
+    private int _nearEvents = 0, _collisionEvents = 0;
+    private int _crossHitAonB = 0, _crossHitBonA = 0;
 
     private bool[] _pairNear = new bool[4];
     private bool[] _pairCollide = new bool[4];
 
     private float _nextHostClockPushTime = 0f;
+    private float _nextInputScanTime = 0f;
+
+    private Coroutine _authorityAcquireLoop;
 
     private void Awake()
     {
+        _condition = WhackConditionUtil.GetConditionFromScene();
+
         _realtime = FindObjectOfType<Realtime>();
         _gs = GetComponent<WhackGameStateSync>();
-        _condition = WhackConditionUtil.GetConditionFromScene();
+        if (_gs == null) _gs = FindObjectOfType<WhackGameStateSync>(true);
+
+        if (_gs != null)
+        {
+            _stateView = _gs.GetComponent<RealtimeView>();
+            if (_stateView == null) _stateView = _gs.GetComponentInParent<RealtimeView>();
+        }
     }
 
     private void Start()
     {
         StartCoroutine(Boot());
     }
+
+    private void OnDestroy()
+    {
+        if (_gs != null)
+        {
+            _gs.ResolveEvent -= OnResolveEvent;
+            _gs.ownerIDSelfDidChange -= OnGameStateOwnerChanged;
+        }
+
+        foreach (var kv in _inputsByOwner)
+            if (kv.Value != null) kv.Value.HitEventReceived -= OnHitEventReceived;
+
+        _inputsByOwner.Clear();
+
+        if (_authorityAcquireLoop != null)
+            StopCoroutine(_authorityAcquireLoop);
+        _authorityAcquireLoop = null;
+    }
+
 
     private IEnumerator Boot()
     {
@@ -80,84 +119,208 @@ public class WhackGameController : MonoBehaviour
             _realtime = FindObjectOfType<Realtime>();
             yield return null;
         }
-        while (_realtime.clientID < 0) yield return null;
+
+        yield return new WaitUntil(() => _realtime.connected && _realtime.clientID >= 0);
 
         if (MRSharedAnchorManager.Instance != null && MRSharedAnchorManager.Instance.isMRScene)
             yield return new WaitUntil(() => MRSharedAnchorManager.Instance.AnchorReady);
 
         yield return new WaitUntil(() => RoleManager.Instance != null);
 
-        float startWait = Time.realtimeSinceStartup;
-        while (!RoleManager.Instance.IsDyadReady() && !RoleManager.Instance.IsSolo())
+        while (_gs == null)
         {
-            if (Time.realtimeSinceStartup - startWait > 10f) break;
+            _gs = GetComponent<WhackGameStateSync>();
+            if (_gs == null) _gs = FindObjectOfType<WhackGameStateSync>(true);
             yield return null;
         }
 
-        // Wait for at least one avatar to exist
+        yield return new WaitUntil(() => _gs.IsModelReady());
+
+        if (_stateView == null)
+        {
+            _stateView = _gs.GetComponent<RealtimeView>();
+            if (_stateView == null) _stateView = _gs.GetComponentInParent<RealtimeView>();
+        }
+
+        if (_stateView == null)
+        {
+            Debug.LogError("[WhackGameController] Missing RealtimeView on WhackGameStateSync.");
+            yield break;
+        }
+
+        // Recommended: put WhackGameState under the Realtime GameObject.
+        // Fallback if you do not:
+        EnsureStateViewIsBoundToRealtimeInstance();
+        yield return null;
+
+        // Wait until at least one avatar exists, so RoleManager can assign teacher.
         yield return new WaitUntil(() =>
         {
-            var avatars = GameObject.FindGameObjectsWithTag("PlayerAvatar");
-            return avatars != null && avatars.Length > 0;
+            var av = GameObject.FindGameObjectsWithTag("PlayerAvatar");
+            return av != null && av.Length > 0;
         });
 
-        // Wait for game state model
-        yield return new WaitUntil(() => _gs != null && _gs.IsModelReady());
-
-        _isAuthority = IsLocalTeacherAuthority();
-
-        CacheMoles();
-
-        if (_isAuthority) {
-            var rv = GetComponent<RealtimeView>();
-            if (rv != null) rv.RequestOwnership();
+        // Cache moles
+        for (int i = 0; i < 30; i++)
+        {
+            CacheMoles();
+            if (_molesByIndex.Count > 0) break;
             yield return null;
-
-            int seed = RoleManager.Instance.GetCommonSeed();
-            if (seed == 0) seed = 12345;
-
-            _rng = new System.Random(seed);
-            _gs.AuthoritySetSeed(seed);
-
-            int now = HostNowMsLocal();
-            _gs.AuthoritySetHostNowMs(now);
-
-            // IMPORTANT: reset any stale times from previous runs
-            _gs.AuthoritySetGameTimes(0, 0, 0);
-
-            int initialHole = PickRandomHoleIndex();
-            _gs.AuthorityScheduleMole(seq: 0, holeIndex: initialHole, startMs: now, endMs: now + 9999999);
-
-            _gs.AuthoritySetGameState(1);  // WaitingForStartHit
-            _countedStartHit = false;
-
-            TryResolveDyadIdFromLocalAvatar();
-            _initialized = true;
-
-            Log($"AUTH init: seed={seed} initialHole={initialHole}");
         }
 
-        if (_gs != null) _gs.ResolveEvent += OnResolveEvent;
-        Log($"Boot done. cid={_realtime.clientID} isAuthority={_isAuthority} gameState={_gs.GameState} hole={_gs.CurrentHoleIndex}");
+        if (_molesByIndex.Count == 0)
+        {
+            Debug.LogError("[WhackGameController] No moles found. Check holesAndMolesRoot.");
+            yield break;
+        }
+
+        _gs.ResolveEvent -= OnResolveEvent;
+        _gs.ResolveEvent += OnResolveEvent;
+
+        _gs.ownerIDSelfDidChange -= OnGameStateOwnerChanged;
+        _gs.ownerIDSelfDidChange += OnGameStateOwnerChanged;
+
+        if (_authorityAcquireLoop == null)
+            _authorityAcquireLoop = StartCoroutine(AuthorityAcquireLoop());
+
+        UpdateAuthorityFlag();
+
+        Log($"Boot complete. cid={_realtime.clientID} isAuthority={_isAuthority} viewOwner={_stateView.ownerIDInHierarchy} teacher={RoleManager.Instance.GetTeacherID()} student={RoleManager.Instance.GetStudentID()}");
     }
 
-    private void OnDestroy()
+    private void EnsureStateViewIsBoundToRealtimeInstance()
     {
-        if (_gs != null) _gs.ResolveEvent -= OnResolveEvent;
+        if (_realtime == null || _stateView == null) return;
 
-        foreach (var kv in _inputsByOwner)
-            if (kv.Value != null) kv.Value.HitEventReceived -= OnHitEventReceived;
+        // Scene RealtimeViews bind by finding a Realtime component in their parent chain.
+        // If WhackGameState is not under the Realtime GameObject, it will stay unbound (ownerIDInHierarchy = -1).
+        if (_stateView.GetComponentInParent<Realtime>() == null)
+        {
+            _stateView.transform.SetParent(_realtime.transform, true);
 
-        _inputsByOwner.Clear();
+            if (verboseLogs)
+                Log("StateView was not under a Realtime instance. Reparented under Realtime for binding.");
+        }
     }
+
+
+
+    private void OnGameStateOwnerChanged(RealtimeComponent<WhackGameStateModel> component,int newOwnerID)
+    {
+        UpdateAuthorityFlag();
+
+        if (_isAuthority && !_authorityInitDone)
+            AuthorityInitIfFresh();
+    }
+
+
+    private void StartOrStopAuthorityAcquireLoop()
+    {
+        int desired = GetDesiredAuthorityClientId();
+        bool shouldTryAcquire = (_realtime != null && _realtime.clientID == desired);
+
+        if (shouldTryAcquire && _authorityAcquireLoop == null)
+            _authorityAcquireLoop = StartCoroutine(AuthorityAcquireLoop());
+        else if (!shouldTryAcquire && _authorityAcquireLoop != null)
+        {
+            StopCoroutine(_authorityAcquireLoop);
+            _authorityAcquireLoop = null;
+        }
+    }
+
+    private IEnumerator AuthorityAcquireLoop()
+    {
+        while (true)
+        {
+            if (_realtime == null || !_realtime.connected || _realtime.clientID < 0) { yield return null; continue; }
+            if (_gs == null || !_gs.IsModelReady()) { yield return null; continue; }
+            if (_stateView == null) { yield return null; continue; }
+            if (RoleManager.Instance == null) { yield return null; continue; }
+
+            EnsureStateViewIsBoundToRealtimeInstance();
+
+            int teacherId = RoleManager.Instance.GetTeacherID();
+            bool shouldOwn = (teacherId >= 0 && _realtime.clientID == teacherId);
+
+            if (shouldOwn && !_stateView.isOwnedLocallySelf)
+            {
+                try { _stateView.RequestOwnership(); }
+                catch { }
+            }
+
+            UpdateAuthorityFlag();
+
+            // IMPORTANT: do not "fresh check". Reset once per scene load when teacher becomes authority.
+            if (_isAuthority && !_authorityInitDone)
+                AuthorityResetToWaiting();
+
+            yield return null;
+        }
+    }
+
+    private void AuthorityResetToWaiting()
+    {
+        _authorityInitDone = true;
+
+        // Reset local counters
+        _hitsA = _hitsB = 0;
+        _missesA = _missesB = 0;
+        _nearEvents = _collisionEvents = 0;
+        _crossHitAonB = _crossHitBonA = 0;
+        for (int i = 0; i < _pairNear.Length; i++) _pairNear[i] = false;
+        for (int i = 0; i < _pairCollide.Length; i++) _pairCollide[i] = false;
+
+        _resolveEventCounter = 0;
+        _lastResolvedSeq = -1;
+        _lastMissSeq = -1;
+        _lastAcceptedSeqByClient.Clear();
+        ClearSeenResolveIds();
+
+        _sessionStarted = false;
+
+        int seed = RoleManager.Instance != null ? RoleManager.Instance.GetCommonSeed() : 0;
+        if (seed == 0) seed = 12345;
+
+        _rng = new System.Random(seed);
+        _gs.AuthoritySetSeed(seed);
+
+        CacheMoles();
+        int initialHole = PickRandomHoleIndex();
+
+        int now = HostNowMsLocal();
+        _gs.AuthoritySetHostNowMs(now);
+
+        // Clear any stale persisted times (prevents instant END and lobby return)
+        _gs.AuthoritySetGameTimes(0, 0, 0);
+
+        // Set waiting-for-first-hit, and make a mole up immediately
+        _gs.AuthorityScheduleMole(seq: 0, holeIndex: initialHole, startMs: now, endMs: now + 9999999);
+        _gs.AuthoritySetGameState(1);
+
+        TryResolveDyadIdFromLocalAvatar();
+
+        Log($"AUTH RESET -> WAITING. seed={seed} initialHole={initialHole} now={now}");
+    }
+
+
 
     private void Update()
     {
-        RefreshInputs();
+        if (_realtime == null || !_realtime.connected || _realtime.clientID < 0) return;
+        if (_gs == null || !_gs.IsModelReady()) return;
+        if (_stateView == null) return;
 
-        if (_gs == null) return;
+        if (_gs.GameState == 2)
+            _sessionStarted = true;
 
-        if (autoReturnToLobby && _gs.GameState == 3)
+        if (Time.time >= _nextInputScanTime)
+        {
+            _nextInputScanTime = Time.time + 0.20f;
+            RefreshInputs();
+        }
+
+        // Only allow lobby return if this session actually ran
+        if (autoReturnToLobby && _sessionStarted && _gs.GameState == 3)
         {
             int hostNow = _gs.EstimateHostNowMs();
             int at = _gs.ReturnToLobbyAtMs;
@@ -171,34 +334,124 @@ public class WhackGameController : MonoBehaviour
         DriveNearCollisionMetrics();
     }
 
-    private void DriveAuthority() {
+
+
+    // ---------------- Authority logic ----------------
+
+    private void UpdateAuthorityFlag()
+    {
+        // Authority is the actual model owner, not "teacher by idea".
+        _isAuthority = (_gs != null && _gs.IsOwnedLocally);
+    }
+
+    private void AuthorityInitIfFresh()
+    {
+        // Only initialize if it looks like a fresh room
+        bool looksFresh =
+            _gs.GameState == 0 &&
+            _gs.GameStartMs == 0 &&
+            _gs.GameEndMs == 0 &&
+            _gs.MoleStartMs == 0 &&
+            _gs.MoleEndMs == 0;
+
+        _authorityInitDone = true;
+
+        if (!looksFresh)
+        {
+            Log("Authority obtained but state is not fresh. Skipping reset.");
+            return;
+        }
+
+        _resolveEventCounter = 0;
+        _lastResolvedSeq = -1;
+        _lastMissSeq = -1;
+        _lastAcceptedSeqByClient.Clear();
+        ClearSeenResolveIds();
+
+        int seed = RoleManager.Instance != null ? RoleManager.Instance.GetCommonSeed() : 0;
+        if (seed == 0) seed = 12345;
+
+        _rng = new System.Random(seed);
+        _gs.AuthoritySetSeed(seed);
+
+        TryResolveDyadIdFromLocalAvatar();
+
+        StartCoroutine(AuthorityWaitThenStartMole(seed));
+        Log($"AUTH init started. seed={seed}");
+    }
+
+    private IEnumerator AuthorityWaitThenStartMole(int seed)
+    {
+        // Dyad gate
+        if (RoleManager.Instance != null && !RoleManager.Instance.IsSolo())
+        {
+            yield return new WaitUntil(() => RoleManager.Instance.IsDyadReady());
+            yield return new WaitUntil(() => CountUniqueAvatarOwners() >= 2);
+        }
+
+        if (!_isAuthority) yield break;
+
+        CacheMoles();
+        if (_molesByIndex.Count == 0) yield break;
+
+        int now = HostNowMsLocal();
+        _gs.AuthoritySetHostNowMs(now);
+        _gs.AuthoritySetGameTimes(0, 0, 0);
+
+        int initialHole = PickRandomHoleIndex();
+        _gs.AuthorityScheduleMole(seq: 0, holeIndex: initialHole, startMs: now, endMs: now + 9999999);
+        _gs.AuthoritySetGameState(1);
+
+        Log($"AUTH READY. seed={seed} initialHole={initialHole} now={now}");
+    }
+
+    private void DriveAuthority()
+    {
         int now = HostNowMsLocal();
 
-        if (Time.realtimeSinceStartup >= _nextHostClockPushTime) {
-            _nextHostClockPushTime = Time.realtimeSinceStartup + 0.05f;
+        // push host clock at ~30 Hz
+        if (Time.realtimeSinceStartup >= _nextHostClockPushTime)
+        {
+            _nextHostClockPushTime = Time.realtimeSinceStartup + 0.033f;
             _gs.AuthoritySetHostNowMs(now);
         }
 
         int state = _gs.GameState;
 
+        if (state == 0) return;
         if (state == 1) return;
 
-        if (state == 2) {
-            // IMPORTANT: only end if GameEndMs is valid
+        if (state == 2)
+        {
             int gameEnd = _gs.GameEndMs;
-            if (gameEnd > 0 && now >= gameEnd) {
+            if (gameEnd > 0 && now >= gameEnd)
+            {
                 EndBlock(now);
                 return;
             }
 
-            // Miss detection also needs valid window
             int moleEnd = _gs.MoleEndMs;
-            if (moleEnd > 0 && now > moleEnd) {
+            int curSeq = _gs.CurrentSeq;
+
+            if (moleEnd > 0 && now > moleEnd && _lastMissSeq != curSeq && _lastResolvedSeq != curSeq)
+            {
+                _lastMissSeq = curSeq;
                 ResolveMiss(now);
             }
         }
     }
 
+    private void StartRunningFromFirstHit(int now)
+    {
+        int startMs = now;
+        int endMs = startMs + Mathf.RoundToInt(blockDurationSeconds * 1000f);
+        int returnMs = endMs + postGameDelayMs;
+
+        _gs.AuthoritySetGameTimes(startMs, endMs, returnMs);
+        _gs.AuthoritySetGameState(2);
+
+        Log($"RUNNING started. startMs={startMs} endMs={endMs}");
+    }
 
     private void EndBlock(int now)
     {
@@ -219,36 +472,33 @@ public class WhackGameController : MonoBehaviour
         else if (closerRole == 1) _missesB++;
 
         EmitResolve(type: 2, byRole: -1, holeIndex: holeIndex, seq: seq, atHostMs: now, byClientId: -1);
-        ScheduleNextFrom(now);
-    }
 
-    // UPDATED: includes byClientId
-    private void EmitResolve(int type, int byRole, int holeIndex, int seq, int atHostMs, int byClientId)
-    {
-        _resolveEventCounter++;
-        _gs.AuthorityEmitResolve(_resolveEventCounter, seq, holeIndex, type, byRole, atHostMs, byClientId);
+        _lastResolvedSeq = seq;
+        ScheduleNextFrom(now);
     }
 
     private void ScheduleNextFrom(int now)
     {
         int delayMs = Mathf.RoundToInt(RandomRangeSeconds(spawnMin, spawnMax) * 1000f);
-        int holdMs = Mathf.RoundToInt(RandomRangeSeconds(holdMin, holdMax) * 1000f);
+        int holdMs  = Mathf.RoundToInt(RandomRangeSeconds(holdMin,  holdMax)  * 1000f);
 
         int nextStart = now + Mathf.Max(leadTimeMs, delayMs);
-        int nextEnd = nextStart + holdMs;
+        int nextEnd   = nextStart + holdMs;
 
         int nextHole = PickRandomHoleIndex();
-        int nextSeq = _gs.CurrentSeq + 1;
+        int nextSeq  = _gs.CurrentSeq + 1;
 
         _gs.AuthorityScheduleMole(nextSeq, nextHole, nextStart, nextEnd);
     }
 
-    private float RandomRangeSeconds(float a, float b)
+    private void EmitResolve(int type, int byRole, int holeIndex, int seq, int atHostMs, int byClientId)
     {
-        if (_rng == null) _rng = new System.Random(12345);
-        double t = _rng.NextDouble();
-        return Mathf.Lerp(a, b, (float)t);
+        _gs.AuthorityEmitResolve(seq, holeIndex, type, byRole, atHostMs, byClientId);
     }
+
+
+
+    // ---------------- Hit intake ----------------
 
     private void RefreshInputs()
     {
@@ -265,17 +515,17 @@ public class WhackGameController : MonoBehaviour
             _inputsByOwner[owner] = inp;
             inp.HitEventReceived += OnHitEventReceived;
 
-            Log($"Registered input owner={owner}");
+            Log($"Registered input owner={owner} name={inp.name}");
         }
     }
 
     private void OnHitEventReceived(WhackPlayerInput sender, WhackPlayerInput.HitEvent e)
     {
         if (!_isAuthority) return;
-        if (_gs == null) return;
+        if (_gs == null || !_gs.IsModelReady()) return;
 
-        int byRole = OwnerToRole(sender.OwnerClientIdInHierarchy);
-        int byClientId = sender.OwnerClientIdInHierarchy;
+        int state = _gs.GameState;
+        if (state != 1 && state != 2) return;
 
         int curHole = _gs.CurrentHoleIndex;
         int curSeq = _gs.CurrentSeq;
@@ -283,124 +533,154 @@ public class WhackGameController : MonoBehaviour
         if (e.holeIndex != curHole) return;
         if (e.seq != curSeq) return;
 
+        int byClientId = sender.OwnerClientIdInHierarchy;
+        int byRole = OwnerToRole(byClientId);
+
+        if (_lastAcceptedSeqByClient.TryGetValue(byClientId, out int lastSeq) && lastSeq == curSeq)
+            return;
+        _lastAcceptedSeqByClient[byClientId] = curSeq;
+
+        if (_lastResolvedSeq == curSeq)
+            return;
+
         int now = HostNowMsLocal();
 
-        if (_gs.GameState == 1)
+        if (state == 1)
         {
-            StartRunningFromHit(now);
-            // still emit resolve so other client gets synced hit FX if you want,
-            // but do not count hit. Also pass byClientId so hitter suppresses echo.
+            StartRunningFromFirstHit(now);
+
             EmitResolve(type: 1, byRole: byRole, holeIndex: curHole, seq: curSeq, atHostMs: now, byClientId: byClientId);
+            _lastResolvedSeq = curSeq;
+
             ScheduleNextFrom(now);
             return;
         }
 
-        if (_gs.GameState != 2) return;
+        const int windowGraceMs = 90;
+        if (now < _gs.MoleStartMs - windowGraceMs || now > _gs.MoleEndMs + windowGraceMs)
+            return;
 
-        if (_countedStartHit)
-        {
-            if (byRole == 0) _hitsA++;
-            else if (byRole == 1) _hitsB++;
+        if (byRole == 0) _hitsA++;
+        else if (byRole == 1) _hitsB++;
 
-            int closerRole = GetCloserRoleToMole(curHole);
-            if (byRole == 0 && closerRole == 1) _crossHitAonB++;
-            if (byRole == 1 && closerRole == 0) _crossHitBonA++;
-        }
+        int closerRole = GetCloserRoleToMole(curHole);
+        if (byRole == 0 && closerRole == 1) _crossHitAonB++;
+        if (byRole == 1 && closerRole == 0) _crossHitBonA++;
 
         EmitResolve(type: 1, byRole: byRole, holeIndex: curHole, seq: curSeq, atHostMs: now, byClientId: byClientId);
+        _lastResolvedSeq = curSeq;
+
         ScheduleNextFrom(now);
     }
 
-    private void StartRunningFromHit(int now)
-    {
-        int startMs = now;
-        int endMs = startMs + Mathf.RoundToInt(blockDurationSeconds * 1000f);
-        int returnMs = endMs + postGameDelayMs;
-
-        _gs.AuthoritySetGameTimes(startMs, endMs, returnMs);
-        _gs.AuthoritySetGameState(2);
-
-        _countedStartHit = true;
-        Log("RUNNING started from first hit");
-    }
+    // ---------------- Resolve FX ----------------
 
     private void OnResolveEvent(WhackGameStateSync.ResolveInfo info)
     {
-        if (!_initialized && !_isAuthority) return;
+        if (info.eventId <= 0) return;
+
+        if (_seenResolveIds.Contains(info.eventId)) return;
+        _seenResolveIds.Add(info.eventId);
+        _seenResolveQueue.Enqueue(info.eventId);
+
+        while (_seenResolveQueue.Count > SeenResolveCapacity)
+        {
+            int oldId = _seenResolveQueue.Dequeue();
+            _seenResolveIds.Remove(oldId);
+        }
 
         if (info.type != 1) return;
 
-        // IMPORTANT: suppress echo on the hitter client (solo + multiplayer)
-        if (_realtime != null && info.byClientId == _realtime.clientID)
-            return;
+        // suppress echo for local hitter
+        if (_realtime != null && info.byClientId == _realtime.clientID) return;
 
         if (_molesByIndex.TryGetValue(info.holeIndex, out MoleVisual m) && m != null)
-        {
-            Log($"Playing HIT FX (synced) on mole='{m.name}' holeIndex={info.holeIndex} byClientId={info.byClientId}");
             m.PlayHitFx(isLocalHitter: false);
-        }
-        else
-        {
-            Log($"ResolveEvent type=1 but no MoleVisual cached for holeIndex={info.holeIndex}");
-        }
     }
 
-    private bool IsLocalTeacherAuthority()
+    private void ClearSeenResolveIds()
     {
-        if (RoleManager.Instance == null || _realtime == null) return false;
-        int cid = _realtime.clientID;
-        if (RoleManager.Instance.IsSolo()) return true;
-        return RoleManager.Instance.IsTeacher(cid);
+        _seenResolveIds.Clear();
+        _seenResolveQueue.Clear();
     }
 
-    private int HostNowMsLocal()
+    // ---------------- Utilities ----------------
+
+    private int GetDesiredAuthorityClientId()
     {
-        return Mathf.RoundToInt(Time.realtimeSinceStartup * 1000f);
+        if (RoleManager.Instance == null) return 0;
+
+        // If roles not ready and not solo, do not fight ownership yet.
+        if (!RoleManager.Instance.IsDyadReady() && !RoleManager.Instance.IsSolo())
+            return _stateView != null && _stateView.ownerIDInHierarchy >= 0 ? _stateView.ownerIDInHierarchy : 0;
+
+        if (RoleManager.Instance.IsSolo())
+            return _realtime != null ? _realtime.clientID : 0;
+
+        int teacher = RoleManager.Instance.GetTeacherID();
+        return (teacher >= 0) ? teacher : 0;
+    }
+
+    private int HostNowMsLocal() => Mathf.RoundToInt(Time.realtimeSinceStartup * 1000f);
+
+    private float RandomRangeSeconds(float a, float b)
+    {
+        if (_rng == null) _rng = new System.Random(12345);
+        return Mathf.Lerp(a, b, (float)_rng.NextDouble());
     }
 
     private void CacheMoles()
     {
         _molesByIndex.Clear();
 
-        if (holesAndMolesRoot == null)
-        {
-            var go = GameObject.Find("Holes & Moles");
-            holesAndMolesRoot = go != null ? go.transform : null;
-        }
+        MoleVisual[] moles;
+        if (holesAndMolesRoot != null) moles = holesAndMolesRoot.GetComponentsInChildren<MoleVisual>(true);
+        else if (MRSharedAnchorManager.Instance != null && MRSharedAnchorManager.Instance.contentRoot != null)
+            moles = MRSharedAnchorManager.Instance.contentRoot.GetComponentsInChildren<MoleVisual>(true);
+        else moles = FindObjectsOfType<MoleVisual>(true);
 
-        var moles = FindObjectsOfType<MoleVisual>(true);
         foreach (var m in moles)
         {
             if (m == null) continue;
             if (m.HoleIndex < 0) continue;
-
             _molesByIndex[m.HoleIndex] = m;
         }
-
-        Log($"Cached moles: {_molesByIndex.Count}");
     }
 
     private int PickRandomHoleIndex()
     {
-        if (_molesByIndex.Count > 0)
+        if (_molesByIndex.Count == 0) return 0;
+        if (_rng == null) _rng = new System.Random(12345);
+
+        var keys = new List<int>(_molesByIndex.Keys);
+        return keys[_rng.Next(keys.Count)];
+    }
+
+    private int CountUniqueAvatarOwners()
+    {
+        var avatars = GameObject.FindGameObjectsWithTag("PlayerAvatar");
+        HashSet<int> owners = new HashSet<int>();
+
+        foreach (var a in avatars)
         {
-            var keys = new List<int>(_molesByIndex.Keys);
-            return keys[_rng.Next(keys.Count)];
+            if (a == null) continue;
+            var v = a.GetComponent<RealtimeView>();
+            if (v != null && v.ownerIDInHierarchy >= 0)
+                owners.Add(v.ownerIDInHierarchy);
         }
-        return _rng.Next(0, 13);
+        return owners.Count;
     }
 
     private int OwnerToRole(int ownerId)
     {
         if (RoleManager.Instance == null) return 0;
+        if (RoleManager.Instance.IsSolo()) return 0;
 
         int teacher = RoleManager.Instance.GetTeacherID();
         int student = RoleManager.Instance.GetStudentID();
 
-        if (RoleManager.Instance.IsSolo()) return 0;
         if (ownerId == teacher) return 0;
         if (ownerId == student) return 1;
-
         return 0;
     }
 
@@ -434,10 +714,8 @@ public class WhackGameController : MonoBehaviour
             if (rv == null) continue;
 
             int owner = rv.ownerIDInHierarchy;
-            if (role == 0 && OwnerToRole(owner) == 0)
-                return av.GetComponent<AvatarRigRefs>();
-            if (role == 1 && OwnerToRole(owner) == 1)
-                return av.GetComponent<AvatarRigRefs>();
+            if (role == 0 && OwnerToRole(owner) == 0) return av.GetComponent<AvatarRigRefs>();
+            if (role == 1 && OwnerToRole(owner) == 1) return av.GetComponent<AvatarRigRefs>();
         }
         return null;
     }

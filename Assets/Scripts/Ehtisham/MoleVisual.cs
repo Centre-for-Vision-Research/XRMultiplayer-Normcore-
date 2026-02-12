@@ -7,11 +7,14 @@ public class MoleVisual : MonoBehaviour
     public float popDistance = 0.03f;
     public float moveSpeed = 0.08f;
 
-    [Header("Hit FX (Prefab + AudioClip)")]
+    [Header("Hit FX")]
     public GameObject hitVfxPrefab;
     public AudioClip hitSfx;
     public Transform vfxSpawnPoint;
     public float vfxAutoDestroySeconds = 2.0f;
+
+    [Header("FX Robustness")]
+    public float fxCooldownSeconds = 0.05f;
 
     private Vector3 _visibleLocalPos;
     private Vector3 _hiddenLocalPos;
@@ -22,12 +25,14 @@ public class MoleVisual : MonoBehaviour
     private float _predictedHideUntilLocalTime = 0f;
 
     private AudioSource _audioSource;
+    private float _lastFxTime = -999f;
 
     private void Awake()
     {
         _col = GetComponent<Collider>();
 
         _holeIndex = ParseHoleIndexFromParent();
+
         _visibleLocalPos = transform.localPosition;
         _hiddenLocalPos = _visibleLocalPos + new Vector3(0f, 0f, -popDistance);
 
@@ -40,8 +45,6 @@ public class MoleVisual : MonoBehaviour
         if (_audioSource == null) _audioSource = gameObject.AddComponent<AudioSource>();
         _audioSource.playOnAwake = false;
         _audioSource.spatialBlend = 1f;
-
-        Debug.Log($"[MoleVisual] '{name}' holeIndex={_holeIndex} parent='{transform.parent?.name}' root='{transform.root.name}'");
     }
 
     private int ParseHoleIndexFromParent()
@@ -56,8 +59,7 @@ public class MoleVisual : MonoBehaviour
             if (open >= 0 && close > open)
             {
                 string inside = n.Substring(open + 1, close - open - 1);
-                if (int.TryParse(inside, out int v))
-                    return v;
+                if (int.TryParse(inside, out int v)) return v;
             }
 
             t = t.parent;
@@ -75,23 +77,26 @@ public class MoleVisual : MonoBehaviour
 
     public void PlayHitFx(bool isLocalHitter = false)
     {
-        // VFX
+        // Small cooldown to suppress accidental duplicates
+        if (Time.realtimeSinceStartup - _lastFxTime < fxCooldownSeconds) return;
+        _lastFxTime = Time.realtimeSinceStartup;
+
         if (hitVfxPrefab != null && vfxSpawnPoint != null)
         {
             GameObject spawned = Instantiate(hitVfxPrefab, vfxSpawnPoint.position, vfxSpawnPoint.rotation);
-            if (vfxAutoDestroySeconds > 0f)
-                Destroy(spawned, vfxAutoDestroySeconds);
+            if (vfxAutoDestroySeconds > 0f) Destroy(spawned, vfxAutoDestroySeconds);
         }
 
-        // SFX
         if (hitSfx != null && _audioSource != null)
+        {
             _audioSource.PlayOneShot(hitSfx);
+        }
     }
 
     private void Update()
     {
         var gs = WhackGameStateSync.Instance;
-        if (gs == null) return;
+        if (gs == null || !gs.IsModelReady()) return;
 
         int state = gs.GameState;
         int hostNow = gs.EstimateHostNowMs();
@@ -107,7 +112,11 @@ public class MoleVisual : MonoBehaviour
         else if (state == 2)
         {
             bool isThis = (gs.CurrentHoleIndex == _holeIndex);
-            bool inWindow = hostNow >= gs.MoleStartMs && hostNow <= gs.MoleEndMs;
+
+            // Slight grace to reduce “missed window” due to clock jitter
+            const int graceMs = 60;
+            bool inWindow = hostNow >= (gs.MoleStartMs - graceMs) && hostNow <= (gs.MoleEndMs + graceMs);
+
             shouldBeUp = isThis && inWindow;
             hittable = shouldBeUp;
         }
@@ -117,6 +126,7 @@ public class MoleVisual : MonoBehaviour
             hittable = false;
         }
 
+        // local prediction: hide immediately for hitter feel
         if (_predictedHideSeq == gs.CurrentSeq)
         {
             if (Time.realtimeSinceStartup <= _predictedHideUntilLocalTime)

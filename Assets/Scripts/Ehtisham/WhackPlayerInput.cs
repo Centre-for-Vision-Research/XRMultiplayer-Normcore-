@@ -43,7 +43,7 @@ public class WhackPlayerInput : RealtimeComponent<WhackPlayerInputModel>
     private void OnHitEventIdChanged(WhackPlayerInputModel m, int newId)
     {
         if (m == null) return;
-        if (newId == _lastSeenHitEventId) return;
+        if (newId <= _lastSeenHitEventId) return;
 
         _lastSeenHitEventId = newId;
 
@@ -57,6 +57,7 @@ public class WhackPlayerInput : RealtimeComponent<WhackPlayerInputModel>
 
         HitEventReceived?.Invoke(this, e);
     }
+
 
     // Called by local collision detection
     public void TrySendHit(int holeIndex, int seq)
