@@ -192,11 +192,16 @@ public class MoleVisual : MonoBehaviour
 
     private void ApplyKindVisual(MoleKind kind)
     {
+        bool isBig = (kind == MoleKind.SharedBig);
+
+        // IMPORTANT: Always enforce the correct scale, even if kind didn't change.
+        ApplyBigScale(isBig);
+
+        // Materials can be skipped if kind hasn't changed.
         if (kind == _lastKindApplied) return;
         _lastKindApplied = kind;
 
         Material mat = sharedMat;
-        bool isBig = (kind == MoleKind.SharedBig);
 
         if (kind == MoleKind.TeacherSmall) mat = teacherMat != null ? teacherMat : sharedMat;
         else if (kind == MoleKind.StudentSmall) mat = studentMat != null ? studentMat : sharedMat;
@@ -204,9 +209,8 @@ public class MoleVisual : MonoBehaviour
         ApplyMaterialTo(_body, mat);
         ApplyMaterialTo(_lhand, mat);
         ApplyMaterialTo(_rhand, mat);
-
-        ApplyBigScale(isBig);
     }
+
 
     private void ApplyMaterialTo(Transform t, Material m)
     {
