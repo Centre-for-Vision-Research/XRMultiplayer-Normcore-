@@ -15,4 +15,7 @@ public partial class WhackPlayerInputModel
 
     [RealtimeProperty(4, true, true)]
     private int _hitSentAtHostMs;
+
+    [RealtimeProperty(5, true, true)]
+    private int _hitSlotIndex; // 0..2
 }

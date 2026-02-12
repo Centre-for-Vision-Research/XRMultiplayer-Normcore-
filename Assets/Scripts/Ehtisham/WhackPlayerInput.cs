@@ -12,6 +12,7 @@ public class WhackPlayerInput : RealtimeComponent<WhackPlayerInputModel>
         public int holeIndex;
         public int seq;
         public int sentAtHostMs;
+        public int slotIndex;
     }
 
     private RealtimeView _view;
@@ -29,9 +30,7 @@ public class WhackPlayerInput : RealtimeComponent<WhackPlayerInputModel>
     protected override void OnRealtimeModelReplaced(WhackPlayerInputModel previousModel, WhackPlayerInputModel currentModel)
     {
         if (previousModel != null)
-        {
             previousModel.hitEventIdDidChange -= OnHitEventIdChanged;
-        }
 
         if (currentModel != null)
         {
@@ -52,20 +51,18 @@ public class WhackPlayerInput : RealtimeComponent<WhackPlayerInputModel>
             eventId = newId,
             holeIndex = m.hitHoleIndex,
             seq = m.hitSeq,
-            sentAtHostMs = m.hitSentAtHostMs
+            sentAtHostMs = m.hitSentAtHostMs,
+            slotIndex = m.hitSlotIndex
         };
 
         HitEventReceived?.Invoke(this, e);
     }
 
-
-    // Called by local collision detection
-    public void TrySendHit(int holeIndex, int seq)
+    public void TrySendHit(int holeIndex, int slotIndex, int seq)
     {
         if (!IsOwnedLocally) return;
         if (model == null) return;
 
-        // simple anti-spam: only one hit per seq per client
         if (_localAntiSpamSeq == seq) return;
         _localAntiSpamSeq = seq;
 
@@ -74,6 +71,7 @@ public class WhackPlayerInput : RealtimeComponent<WhackPlayerInputModel>
             : Mathf.RoundToInt(Time.realtimeSinceStartup * 1000f);
 
         model.hitHoleIndex = holeIndex;
+        model.hitSlotIndex = slotIndex;
         model.hitSeq = seq;
         model.hitSentAtHostMs = hostNow;
         model.hitEventId = model.hitEventId + 1;

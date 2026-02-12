@@ -7,34 +7,70 @@ public class MoleVisual : MonoBehaviour
     public float popDistance = 0.03f;
     public float moveSpeed = 0.08f;
 
+    [Header("Big Mole (SharedBig)")]
+    [Tooltip("Multiplier applied to THIS mole object's localScale when the mole is SharedBig.")]
+    public float bigVisualScale = 1.35f;
+
+    [Tooltip("How far down (meters) the big mole goes after the first hit. Should be < popDistance.")]
+    public float bigPartialDownDistance = 0.012f;
+
+    [Header("Materials (assign in Inspector)")]
+    public Material teacherMat;
+    public Material studentMat;
+    public Material sharedMat; // brown
+
     [Header("Hit FX")]
     public GameObject hitVfxPrefab;
-    public AudioClip hitSfx;
     public Transform vfxSpawnPoint;
     public float vfxAutoDestroySeconds = 2.0f;
+
+    [Header("Audio FX")]
+    public AudioClip correctHitSfx;
+    public AudioClip wrongHitSfx;
+    public AudioClip bigProgressSfx; // optional, falls back to correct
+    public float sfxVolume = 1f;
 
     [Header("FX Robustness")]
     public float fxCooldownSeconds = 0.05f;
 
     private Vector3 _visibleLocalPos;
     private Vector3 _hiddenLocalPos;
+    private Vector3 _bigPartialLocalPos;
+
     private Collider _col;
     private int _holeIndex = -1;
-
-    private int _predictedHideSeq = -999;
-    private float _predictedHideUntilLocalTime = 0f;
 
     private AudioSource _audioSource;
     private float _lastFxTime = -999f;
 
+    // local prediction for instant feel
+    private int _predictedHideSeq = -999;
+    private float _predictedHideUntilLocalTime = 0f;
+
+    private int _predictedBigSeq = -999;
+    private float _predictedBigUntilLocalTime = 0f;
+
+    // cached refs for materials
+    private Transform _body, _lhand, _rhand;
+
+    // base scale for scaling the entire mole object (covers hair, whiskers, etc.)
+    private Vector3 _rootBaseScale;
+
+    private MoleKind _lastKindApplied = (MoleKind)(-99);
+
     private void Awake()
     {
         _col = GetComponent<Collider>();
-
         _holeIndex = ParseHoleIndexFromParent();
 
         _visibleLocalPos = transform.localPosition;
         _hiddenLocalPos = _visibleLocalPos + new Vector3(0f, 0f, -popDistance);
+
+        float partial = Mathf.Clamp(bigPartialDownDistance, 0f, popDistance);
+        _bigPartialLocalPos = _visibleLocalPos + new Vector3(0f, 0f, -partial);
+
+        // cache base scale of the whole mole object
+        _rootBaseScale = transform.localScale;
 
         transform.localPosition = _hiddenLocalPos;
         _col.enabled = false;
@@ -45,6 +81,47 @@ public class MoleVisual : MonoBehaviour
         if (_audioSource == null) _audioSource = gameObject.AddComponent<AudioSource>();
         _audioSource.playOnAwake = false;
         _audioSource.spatialBlend = 1f;
+
+        CacheVisualChildren();
+    }
+
+    private void CacheVisualChildren()
+    {
+        // body is usually "body"
+        _body = FindChildByAnyName(transform, "body", "Body");
+
+        // hands: support both old names and your camelCase names
+        _lhand = FindChildByAnyName(transform, "leftHand", "lefthand", "LeftHand", "Lefthand");
+        _rhand = FindChildByAnyName(transform, "rightHand", "righthand", "RightHand", "Righthand");
+    }
+
+    private static Transform FindChildByAnyName(Transform root, params string[] names)
+    {
+        foreach (var n in names)
+        {
+            var direct = root.Find(n);
+            if (direct != null) return direct;
+        }
+
+        // fallback: recursive search (case-insensitive)
+        return FindChildRecursive(root, names);
+    }
+
+    private static Transform FindChildRecursive(Transform root, string[] names)
+    {
+        for (int i = 0; i < root.childCount; i++)
+        {
+            var c = root.GetChild(i);
+            foreach (var n in names)
+            {
+                if (string.Equals(c.name, n, System.StringComparison.OrdinalIgnoreCase))
+                    return c;
+            }
+
+            var found = FindChildRecursive(c, names);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private int ParseHoleIndexFromParent()
@@ -75,9 +152,14 @@ public class MoleVisual : MonoBehaviour
         _predictedHideUntilLocalTime = Time.realtimeSinceStartup + localHoldSeconds;
     }
 
-    public void PlayHitFx(bool isLocalHitter = false)
+    public void PredictBigProgressForSeq(int seq, float localHoldSeconds = 0.30f)
     {
-        // Small cooldown to suppress accidental duplicates
+        _predictedBigSeq = seq;
+        _predictedBigUntilLocalTime = Time.realtimeSinceStartup + localHoldSeconds;
+    }
+
+    public void PlayHitFx(ResolveKind kind)
+    {
         if (Time.realtimeSinceStartup - _lastFxTime < fxCooldownSeconds) return;
         _lastFxTime = Time.realtimeSinceStartup;
 
@@ -87,10 +169,59 @@ public class MoleVisual : MonoBehaviour
             if (vfxAutoDestroySeconds > 0f) Destroy(spawned, vfxAutoDestroySeconds);
         }
 
-        if (hitSfx != null && _audioSource != null)
+        if (_audioSource == null) return;
+
+        if (kind == ResolveKind.HitWrong)
         {
-            _audioSource.PlayOneShot(hitSfx);
+            if (wrongHitSfx != null) _audioSource.PlayOneShot(wrongHitSfx, sfxVolume);
+            return;
         }
+
+        if (kind == ResolveKind.BigFirst)
+        {
+            var clip = bigProgressSfx != null ? bigProgressSfx : correctHitSfx;
+            if (clip != null) _audioSource.PlayOneShot(clip, sfxVolume);
+            return;
+        }
+
+        if (kind == ResolveKind.HitCorrect || kind == ResolveKind.BigComplete)
+        {
+            if (correctHitSfx != null) _audioSource.PlayOneShot(correctHitSfx, sfxVolume);
+        }
+    }
+
+    private void ApplyKindVisual(MoleKind kind)
+    {
+        if (kind == _lastKindApplied) return;
+        _lastKindApplied = kind;
+
+        Material mat = sharedMat;
+        bool isBig = (kind == MoleKind.SharedBig);
+
+        if (kind == MoleKind.TeacherSmall) mat = teacherMat != null ? teacherMat : sharedMat;
+        else if (kind == MoleKind.StudentSmall) mat = studentMat != null ? studentMat : sharedMat;
+
+        ApplyMaterialTo(_body, mat);
+        ApplyMaterialTo(_lhand, mat);
+        ApplyMaterialTo(_rhand, mat);
+
+        ApplyBigScale(isBig);
+    }
+
+    private void ApplyMaterialTo(Transform t, Material m)
+    {
+        if (t == null || m == null) return;
+
+        // apply to all renderers under that part (covers skinned mesh, etc.)
+        var renderers = t.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].material = m;
+    }
+
+    private void ApplyBigScale(bool isBig)
+    {
+        // scale the whole mole object so extra parts like hair, whiskers, etc. scale too
+        transform.localScale = isBig ? (_rootBaseScale * bigVisualScale) : _rootBaseScale;
     }
 
     private void Update()
@@ -98,51 +229,68 @@ public class MoleVisual : MonoBehaviour
         var gs = WhackGameStateSync.Instance;
         if (gs == null || !gs.IsModelReady()) return;
 
-        int state = gs.GameState;
         int hostNow = gs.EstimateHostNowMs();
+        int state = gs.GameState;
 
         bool shouldBeUp = false;
         bool hittable = false;
 
-        if (state == 1)
-        {
-            shouldBeUp = (gs.CurrentHoleIndex == _holeIndex);
-            hittable = shouldBeUp;
-        }
-        else if (state == 2)
-        {
-            bool isThis = (gs.CurrentHoleIndex == _holeIndex);
+        MoleKind activeKind = MoleKind.SharedSmall;
+        int activeSeq = -1;
+        int bigStage = 0;
 
-            // Slight grace to reduce “missed window” due to clock jitter
+        if (state == 1 || state == 2)
+        {
             const int graceMs = 60;
-            bool inWindow = hostNow >= (gs.MoleStartMs - graceMs) && hostNow <= (gs.MoleEndMs + graceMs);
 
-            shouldBeUp = isThis && inWindow;
-            hittable = shouldBeUp;
+            if (gs.TryFindActiveSlotForHole(_holeIndex, hostNow, graceMs,
+                out int slotIndex, out int seq, out MoleKind kind, out int slotBigStage, out int firstRole))
+            {
+                shouldBeUp = true;
+                hittable = true;
+
+                activeKind = kind;
+                activeSeq = seq;
+                bigStage = slotBigStage;
+
+                // local prediction for big stage transition (helps feel instant)
+                if (_predictedBigSeq == seq && Time.realtimeSinceStartup <= _predictedBigUntilLocalTime)
+                    bigStage = 1;
+                else if (_predictedBigSeq == seq)
+                    _predictedBigSeq = -999;
+
+                // local prediction: hide immediately for hitter feel (small moles, and big completion)
+                if (_predictedHideSeq == seq)
+                {
+                    if (Time.realtimeSinceStartup <= _predictedHideUntilLocalTime)
+                    {
+                        shouldBeUp = false;
+                        hittable = false;
+                    }
+                    else
+                    {
+                        _predictedHideSeq = -999;
+                    }
+                }
+            }
         }
+
+        if (shouldBeUp)
+            ApplyKindVisual(activeKind);
+        else
+            ApplyBigScale(false); // ensure it returns to base scale when hidden
+
+        Vector3 target;
+
+        if (!shouldBeUp) target = _hiddenLocalPos;
         else
         {
-            shouldBeUp = false;
-            hittable = false;
+            bool isBig = (activeKind == MoleKind.SharedBig);
+            if (isBig && bigStage == 1) target = _bigPartialLocalPos;
+            else target = _visibleLocalPos;
         }
 
-        // local prediction: hide immediately for hitter feel
-        if (_predictedHideSeq == gs.CurrentSeq)
-        {
-            if (Time.realtimeSinceStartup <= _predictedHideUntilLocalTime)
-            {
-                shouldBeUp = false;
-                hittable = false;
-            }
-            else
-            {
-                _predictedHideSeq = -999;
-            }
-        }
-
-        Vector3 target = shouldBeUp ? _visibleLocalPos : _hiddenLocalPos;
         transform.localPosition = Vector3.MoveTowards(transform.localPosition, target, moveSpeed * Time.deltaTime);
-
         _col.enabled = hittable;
     }
 }

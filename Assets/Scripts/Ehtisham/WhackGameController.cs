@@ -1,5 +1,7 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEngine;
@@ -11,27 +13,71 @@ public class WhackGameController : MonoBehaviour
     [Header("Scene References")]
     public Transform holesAndMolesRoot;
 
-    [Header("Timings (seconds)")]
+    [Header("Active Moles")]
+    [Range(1, 3)]
+    public int activeMoles = 2;              // N slots during RUNNING
+    public int leadTimeMs = 250;
+
+    [Header("Spawn Delay Range (seconds)")]
     public float spawnMin = 0.20f;
     public float spawnMax = 0.40f;
-    public float holdMin  = 0.20f;
-    public float holdMax  = 0.50f;
+
+    [Header("Hold Duration Tiers (seconds)")]
+    public float holdLowMin = 0.20f;
+    public float holdLowMax = 0.30f;
+    public float holdMidMin = 0.30f;
+    public float holdMidMax = 0.40f;
+    public float holdHighMin = 0.40f;
+    public float holdHighMax = 0.55f;
+
+    [Tooltip("Weights for [Low, Mid, High]. Balanced sampling will approximate these proportions.")]
+    public Vector3 holdTierWeights = new Vector3(1f, 1f, 1f);
+
+    [Header("Mole Type Weights (balanced)")]
+    [Tooltip("Weights for TeacherSmall, StudentSmall, SharedSmall, SharedBig")]
+    public Vector4 kindWeights = new Vector4(1f, 1f, 1.4f, 0.35f);
+
+    [Header("Big Mole Settings")]
+    [Tooltip("Seconds allowed for the second player to complete the big mole after first hit.")]
+    public float bigSecondWindowSeconds = 0.65f;
 
     [Header("Block Settings")]
     public float blockDurationSeconds = 120f;
-    public int leadTimeMs = 250;
     public int postGameDelayMs = 1500;
 
     [Header("Return")]
     public bool autoReturnToLobby = true;
     public string lobbySceneName = "LobbyAvtrs";
 
+    [Header("Conflict Bursts (optional)")]
+    public bool enableConflictBursts = false;
+    public float burstEveryMinSeconds = 10f;
+    public float burstEveryMaxSeconds = 18f;
+    public float burstDurationSeconds = 5f;
+
+    [Tooltip("Multiplier applied to SharedSmall and SharedBig weights during a burst.")]
+    public float burstSharedWeightMultiplier = 1.8f;
+
+    [Header("Hole Clustering (optional)")]
+    public bool enableSharedClustering = true;
+    public float clusterDistanceMeters = 0.22f;
+
     [Header("Collision Metrics")]
+    public bool countNearEvents = false;
     public float nearThreshold = 0.18f;
     public float collisionThreshold = 0.08f;
 
-    private bool _sessionStarted = false;   // becomes true once we ever enter state 2 this session
+    [Header("Collision Audio")]
+    public AudioClip collisionSfx;
+    public float collisionSfxVolume = 0.9f;
+    public float collisionSfxCooldownSeconds = 0.10f;
 
+    [Header("Scoring (for logging only)")]
+    public int scoreCorrectHit = 1;
+    public int scoreWrongHit = -1;
+    public int scoreBigComplete = 3;
+    public float scoreCollisionPenalty = -0.25f; // applied per collision event
+    public bool scoreUsesCollisionPenalty = true;
 
     [Header("Debug")]
     public bool verboseLogs = true;
@@ -41,35 +87,67 @@ public class WhackGameController : MonoBehaviour
     private RealtimeView _stateView;
 
     private System.Random _rng;
-
     private bool _isAuthority = false;
     private bool _authorityInitDone = false;
+    private bool _sessionStarted = false;
 
     private readonly Dictionary<int, MoleVisual> _molesByIndex = new Dictionary<int, MoleVisual>();
     private readonly Dictionary<int, WhackPlayerInput> _inputsByOwner = new Dictionary<int, WhackPlayerInput>();
 
     private readonly HashSet<int> _seenResolveIds = new HashSet<int>();
     private readonly Queue<int> _seenResolveQueue = new Queue<int>();
-    private const int SeenResolveCapacity = 96;
+    private const int SeenResolveCapacity = 128;
 
-    private int _resolveEventCounter = 0;
-    private int _lastResolvedSeq = -1;
-    private int _lastMissSeq = -1;
+    private int _globalSeqCounter = 0;
+
+    // per slot bookkeeping
+    private int[] _lastResolvedSeqBySlot = new int[3] { -1, -1, -1 };
+    private int[] _lastMissSeqBySlot = new int[3] { -1, -1, -1 };
+    private int[] _lastHoleBySlot = new int[3] { -1, -1, -1 };
+
     private readonly Dictionary<int, int> _lastAcceptedSeqByClient = new Dictionary<int, int>();
 
-    private string _dyadId = "UnknownDyad";
-    private string _condition = "Unknown";
+    // metrics
+    private int _teacherCorrect = 0;
+    private int _studentCorrect = 0;
+    private int _teacherWrong = 0;
+    private int _studentWrong = 0;
 
-    private int _hitsA = 0, _hitsB = 0;
-    private int _missesA = 0, _missesB = 0;
-    private int _nearEvents = 0, _collisionEvents = 0;
-    private int _crossHitAonB = 0, _crossHitBonA = 0;
+    private int _missTeacherMoles = 0;
+    private int _missStudentMoles = 0;
+    private int _missSharedMoles = 0;
 
+    private int _sharedHitsByTeacher = 0;
+    private int _sharedHitsByStudent = 0;
+
+    private int _bigComplete = 0;
+    private int _bigOneHitOnly = 0;
+    private int _bigMiss = 0;
+
+    private int _nearEvents = 0;
+    private int _collisionEvents = 0;
+    private int _collisionDuringSharedActive = 0;
+    private int _collisionDuringExclusiveOnly = 0;
+
+    // collision edge state for 4 hammer pairs
     private bool[] _pairNear = new bool[4];
     private bool[] _pairCollide = new bool[4];
+    private float _lastCollisionSfxTime = -999f;
 
     private float _nextHostClockPushTime = 0f;
     private float _nextInputScanTime = 0f;
+
+    // burst scheduler
+    private bool _inBurst = false;
+    private int _burstEndHostMs = 0;
+    private int _nextBurstHostMs = 0;
+
+    // balanced samplers
+    private BalancedPicker _kindPicker;
+    private BalancedPicker _holdTierPicker;
+
+    private string _dyadId = "UnknownDyad";
+    private string _condition = "Unknown";
 
     private Coroutine _authorityAcquireLoop;
 
@@ -106,11 +184,9 @@ public class WhackGameController : MonoBehaviour
 
         _inputsByOwner.Clear();
 
-        if (_authorityAcquireLoop != null)
-            StopCoroutine(_authorityAcquireLoop);
+        if (_authorityAcquireLoop != null) StopCoroutine(_authorityAcquireLoop);
         _authorityAcquireLoop = null;
     }
-
 
     private IEnumerator Boot()
     {
@@ -148,19 +224,16 @@ public class WhackGameController : MonoBehaviour
             yield break;
         }
 
-        // Recommended: put WhackGameState under the Realtime GameObject.
-        // Fallback if you do not:
         EnsureStateViewIsBoundToRealtimeInstance();
         yield return null;
 
-        // Wait until at least one avatar exists, so RoleManager can assign teacher.
+        // Wait until at least one avatar exists (roles depend on it)
         yield return new WaitUntil(() =>
         {
             var av = GameObject.FindGameObjectsWithTag("PlayerAvatar");
             return av != null && av.Length > 0;
         });
 
-        // Cache moles
         for (int i = 0; i < 30; i++)
         {
             CacheMoles();
@@ -185,47 +258,26 @@ public class WhackGameController : MonoBehaviour
 
         UpdateAuthorityFlag();
 
-        Log($"Boot complete. cid={_realtime.clientID} isAuthority={_isAuthority} viewOwner={_stateView.ownerIDInHierarchy} teacher={RoleManager.Instance.GetTeacherID()} student={RoleManager.Instance.GetStudentID()}");
+        Log($"Boot complete. cid={_realtime.clientID} isAuthority={_isAuthority} viewOwner={_stateView.ownerIDInHierarchy}");
     }
 
     private void EnsureStateViewIsBoundToRealtimeInstance()
     {
         if (_realtime == null || _stateView == null) return;
 
-        // Scene RealtimeViews bind by finding a Realtime component in their parent chain.
-        // If WhackGameState is not under the Realtime GameObject, it will stay unbound (ownerIDInHierarchy = -1).
         if (_stateView.GetComponentInParent<Realtime>() == null)
         {
             _stateView.transform.SetParent(_realtime.transform, true);
-
-            if (verboseLogs)
-                Log("StateView was not under a Realtime instance. Reparented under Realtime for binding.");
+            Log("StateView was not under a Realtime instance. Reparented under Realtime for binding.");
         }
     }
 
-
-
-    private void OnGameStateOwnerChanged(RealtimeComponent<WhackGameStateModel> component,int newOwnerID)
+    private void OnGameStateOwnerChanged(RealtimeComponent<WhackGameStateModel> component, int newOwnerID)
     {
         UpdateAuthorityFlag();
 
         if (_isAuthority && !_authorityInitDone)
-            AuthorityInitIfFresh();
-    }
-
-
-    private void StartOrStopAuthorityAcquireLoop()
-    {
-        int desired = GetDesiredAuthorityClientId();
-        bool shouldTryAcquire = (_realtime != null && _realtime.clientID == desired);
-
-        if (shouldTryAcquire && _authorityAcquireLoop == null)
-            _authorityAcquireLoop = StartCoroutine(AuthorityAcquireLoop());
-        else if (!shouldTryAcquire && _authorityAcquireLoop != null)
-        {
-            StopCoroutine(_authorityAcquireLoop);
-            _authorityAcquireLoop = null;
-        }
+            AuthorityResetToWaiting();
     }
 
     private IEnumerator AuthorityAcquireLoop()
@@ -244,13 +296,11 @@ public class WhackGameController : MonoBehaviour
 
             if (shouldOwn && !_stateView.isOwnedLocallySelf)
             {
-                try { _stateView.RequestOwnership(); }
-                catch { }
+                try { _stateView.RequestOwnership(); } catch { }
             }
 
             UpdateAuthorityFlag();
 
-            // IMPORTANT: do not "fresh check". Reset once per scene load when teacher becomes authority.
             if (_isAuthority && !_authorityInitDone)
                 AuthorityResetToWaiting();
 
@@ -258,25 +308,42 @@ public class WhackGameController : MonoBehaviour
         }
     }
 
+    private void UpdateAuthorityFlag()
+    {
+        _isAuthority = (_gs != null && _gs.IsOwnedLocally);
+    }
+
+    private int HostNowMsLocal() => Mathf.RoundToInt(Time.realtimeSinceStartup * 1000f);
+
     private void AuthorityResetToWaiting()
     {
         _authorityInitDone = true;
 
-        // Reset local counters
-        _hitsA = _hitsB = 0;
-        _missesA = _missesB = 0;
+        // metrics reset
+        _teacherCorrect = _studentCorrect = 0;
+        _teacherWrong = _studentWrong = 0;
+        _missTeacherMoles = _missStudentMoles = _missSharedMoles = 0;
+        _sharedHitsByTeacher = _sharedHitsByStudent = 0;
+        _bigComplete = _bigOneHitOnly = _bigMiss = 0;
         _nearEvents = _collisionEvents = 0;
-        _crossHitAonB = _crossHitBonA = 0;
+        _collisionDuringSharedActive = _collisionDuringExclusiveOnly = 0;
+
         for (int i = 0; i < _pairNear.Length; i++) _pairNear[i] = false;
         for (int i = 0; i < _pairCollide.Length; i++) _pairCollide[i] = false;
 
-        _resolveEventCounter = 0;
-        _lastResolvedSeq = -1;
-        _lastMissSeq = -1;
+        for (int s = 0; s < 3; s++)
+        {
+            _lastResolvedSeqBySlot[s] = -1;
+            _lastMissSeqBySlot[s] = -1;
+            _lastHoleBySlot[s] = -1;
+        }
+
+        _seenResolveIds.Clear();
+        _seenResolveQueue.Clear();
         _lastAcceptedSeqByClient.Clear();
-        ClearSeenResolveIds();
 
         _sessionStarted = false;
+        _globalSeqCounter = 0;
 
         int seed = RoleManager.Instance != null ? RoleManager.Instance.GetCommonSeed() : 0;
         if (seed == 0) seed = 12345;
@@ -284,25 +351,41 @@ public class WhackGameController : MonoBehaviour
         _rng = new System.Random(seed);
         _gs.AuthoritySetSeed(seed);
 
-        CacheMoles();
-        int initialHole = PickRandomHoleIndex();
+        _kindPicker = new BalancedPicker(new float[] { kindWeights.x, kindWeights.y, kindWeights.z, kindWeights.w }, seed + 11);
+        _holdTierPicker = new BalancedPicker(new float[] { holdTierWeights.x, holdTierWeights.y, holdTierWeights.z }, seed + 23);
 
+        // burst schedule init (host time)
         int now = HostNowMsLocal();
-        _gs.AuthoritySetHostNowMs(now);
+        _inBurst = false;
+        _burstEndHostMs = 0;
+        _nextBurstHostMs = now + Mathf.RoundToInt(RandomRangeSeconds(burstEveryMinSeconds, burstEveryMaxSeconds) * 1000f);
 
-        // Clear any stale persisted times (prevents instant END and lobby return)
+        CacheMoles();
+        int initialHole = PickRandomHoleIndex(avoid: new HashSet<int>());
+
+        _gs.AuthoritySetHostNowMs(now);
         _gs.AuthoritySetGameTimes(0, 0, 0);
 
-        // Set waiting-for-first-hit, and make a mole up immediately
-        _gs.AuthorityScheduleMole(seq: 0, holeIndex: initialHole, startMs: now, endMs: now + 9999999);
-        _gs.AuthoritySetGameState(1);
+        // WAITING: keep 1 slot active (backward compatible start)
+        _gs.AuthoritySetActiveSlotCount(1);
+
+        _globalSeqCounter++;
+        _gs.AuthorityScheduleSlot(
+            slot: 0,
+            seq: _globalSeqCounter,
+            holeIndex: initialHole,
+            startMs: now,
+            endMs: now + 9999999,
+            kind: MoleKind.SharedSmall,
+            bigStage: 0,
+            bigFirstRole: -1
+        );
 
         TryResolveDyadIdFromLocalAvatar();
+        _gs.AuthoritySetGameState(1);
 
         Log($"AUTH RESET -> WAITING. seed={seed} initialHole={initialHole} now={now}");
     }
-
-
 
     private void Update()
     {
@@ -310,16 +393,17 @@ public class WhackGameController : MonoBehaviour
         if (_gs == null || !_gs.IsModelReady()) return;
         if (_stateView == null) return;
 
-        if (_gs.GameState == 2)
-            _sessionStarted = true;
-
         if (Time.time >= _nextInputScanTime)
         {
             _nextInputScanTime = Time.time + 0.20f;
             RefreshInputs();
         }
 
-        // Only allow lobby return if this session actually ran
+        if (_gs.GameState == 2) _sessionStarted = true;
+
+        // local collision audio, for both clients
+        UpdateCollisionAudioLocal();
+
         if (autoReturnToLobby && _sessionStarted && _gs.GameState == 3)
         {
             int hostNow = _gs.EstimateHostNowMs();
@@ -331,98 +415,26 @@ public class WhackGameController : MonoBehaviour
         if (!_isAuthority) return;
 
         DriveAuthority();
-        DriveNearCollisionMetrics();
-    }
-
-
-
-    // ---------------- Authority logic ----------------
-
-    private void UpdateAuthorityFlag()
-    {
-        // Authority is the actual model owner, not "teacher by idea".
-        _isAuthority = (_gs != null && _gs.IsOwnedLocally);
-    }
-
-    private void AuthorityInitIfFresh()
-    {
-        // Only initialize if it looks like a fresh room
-        bool looksFresh =
-            _gs.GameState == 0 &&
-            _gs.GameStartMs == 0 &&
-            _gs.GameEndMs == 0 &&
-            _gs.MoleStartMs == 0 &&
-            _gs.MoleEndMs == 0;
-
-        _authorityInitDone = true;
-
-        if (!looksFresh)
-        {
-            Log("Authority obtained but state is not fresh. Skipping reset.");
-            return;
-        }
-
-        _resolveEventCounter = 0;
-        _lastResolvedSeq = -1;
-        _lastMissSeq = -1;
-        _lastAcceptedSeqByClient.Clear();
-        ClearSeenResolveIds();
-
-        int seed = RoleManager.Instance != null ? RoleManager.Instance.GetCommonSeed() : 0;
-        if (seed == 0) seed = 12345;
-
-        _rng = new System.Random(seed);
-        _gs.AuthoritySetSeed(seed);
-
-        TryResolveDyadIdFromLocalAvatar();
-
-        StartCoroutine(AuthorityWaitThenStartMole(seed));
-        Log($"AUTH init started. seed={seed}");
-    }
-
-    private IEnumerator AuthorityWaitThenStartMole(int seed)
-    {
-        // Dyad gate
-        if (RoleManager.Instance != null && !RoleManager.Instance.IsSolo())
-        {
-            yield return new WaitUntil(() => RoleManager.Instance.IsDyadReady());
-            yield return new WaitUntil(() => CountUniqueAvatarOwners() >= 2);
-        }
-
-        if (!_isAuthority) yield break;
-
-        CacheMoles();
-        if (_molesByIndex.Count == 0) yield break;
-
-        int now = HostNowMsLocal();
-        _gs.AuthoritySetHostNowMs(now);
-        _gs.AuthoritySetGameTimes(0, 0, 0);
-
-        int initialHole = PickRandomHoleIndex();
-        _gs.AuthorityScheduleMole(seq: 0, holeIndex: initialHole, startMs: now, endMs: now + 9999999);
-        _gs.AuthoritySetGameState(1);
-
-        Log($"AUTH READY. seed={seed} initialHole={initialHole} now={now}");
+        DriveNearCollisionMetricsAuthority();
     }
 
     private void DriveAuthority()
     {
         int now = HostNowMsLocal();
 
-        // push host clock at ~30 Hz
         if (Time.realtimeSinceStartup >= _nextHostClockPushTime)
         {
             _nextHostClockPushTime = Time.realtimeSinceStartup + 0.033f;
             _gs.AuthoritySetHostNowMs(now);
         }
 
-        int state = _gs.GameState;
+        if (_gs.GameState == 0) return;
+        if (_gs.GameState == 1) return; // waiting for first hit
 
-        if (state == 0) return;
-        if (state == 1) return;
-
-        if (state == 2)
+        if (_gs.GameState == 2)
         {
+            UpdateBurstState(now);
+
             int gameEnd = _gs.GameEndMs;
             if (gameEnd > 0 && now >= gameEnd)
             {
@@ -430,27 +442,59 @@ public class WhackGameController : MonoBehaviour
                 return;
             }
 
-            int moleEnd = _gs.MoleEndMs;
-            int curSeq = _gs.CurrentSeq;
+            int slots = Mathf.Clamp(activeMoles, 1, 3);
+            for (int s = 0; s < slots; s++)
+                CheckMissForSlot(s, now);
+        }
+    }
 
-            if (moleEnd > 0 && now > moleEnd && _lastMissSeq != curSeq && _lastResolvedSeq != curSeq)
-            {
-                _lastMissSeq = curSeq;
-                ResolveMiss(now);
-            }
+    private void UpdateBurstState(int now)
+    {
+        if (!enableConflictBursts) { _inBurst = false; return; }
+
+        if (!_inBurst && now >= _nextBurstHostMs)
+        {
+            _inBurst = true;
+            _burstEndHostMs = now + Mathf.RoundToInt(burstDurationSeconds * 1000f);
+        }
+
+        if (_inBurst && now >= _burstEndHostMs)
+        {
+            _inBurst = false;
+            _nextBurstHostMs = now + Mathf.RoundToInt(RandomRangeSeconds(burstEveryMinSeconds, burstEveryMaxSeconds) * 1000f);
         }
     }
 
     private void StartRunningFromFirstHit(int now)
     {
-        int startMs = now;
-        int endMs = startMs + Mathf.RoundToInt(blockDurationSeconds * 1000f);
-        int returnMs = endMs + postGameDelayMs;
+        int blockStartMs = now;
+        int blockEndMs = blockStartMs + Mathf.RoundToInt(blockDurationSeconds * 1000f);
+        int returnMs = blockEndMs + postGameDelayMs;
 
-        _gs.AuthoritySetGameTimes(startMs, endMs, returnMs);
+        _gs.AuthoritySetGameTimes(blockStartMs, blockEndMs, returnMs);
         _gs.AuthoritySetGameState(2);
 
-        Log($"RUNNING started. startMs={startMs} endMs={endMs}");
+        int slots = Mathf.Clamp(activeMoles, 1, 3);
+        _gs.AuthoritySetActiveSlotCount(slots);
+
+        // schedule additional slots (1..slots-1) with staggered starts
+        HashSet<int> avoid = new HashSet<int>();
+
+        // FIX: do NOT access _gs.model (protected). Use TryGetSlot to get slot0 hole.
+        if (_gs.TryGetSlot(0,
+            out int s0Seq, out int s0Hole,
+            out int s0StartMs, out int s0EndMs,
+            out MoleKind s0Kind, out int s0BigStage, out int s0FirstRole))
+        {
+            if (s0Hole >= 0) avoid.Add(s0Hole);
+        }
+
+        for (int s = 1; s < slots; s++)
+        {
+            ScheduleNextFromSlot(s, now, avoid, forceSoon: true);
+        }
+
+        Log($"RUNNING started. slots={slots} startMs={blockStartMs} endMs={blockEndMs}");
     }
 
     private void EndBlock(int now)
@@ -459,47 +503,51 @@ public class WhackGameController : MonoBehaviour
         _gs.AuthoritySetGameTimes(_gs.GameStartMs, _gs.GameEndMs, now + postGameDelayMs);
 
         WriteSummaryCsv();
-        Log($"END. hitsA={_hitsA} hitsB={_hitsB} missesA={_missesA} missesB={_missesB} near={_nearEvents} collide={_collisionEvents}");
+        Log("END block.");
     }
 
-    private void ResolveMiss(int now)
+    // ---------------------------
+    // Slot miss logic
+    // ---------------------------
+    private void CheckMissForSlot(int slot, int now)
     {
-        int seq = _gs.CurrentSeq;
-        int holeIndex = _gs.CurrentHoleIndex;
+        if (!_gs.TryGetSlot(slot,
+            out int seq, out int hole,
+            out int slotStartMs, out int slotEndMs,
+            out MoleKind slotKind,
+            out int bigStage, out int bigFirstRole))
+            return;
 
-        int closerRole = GetCloserRoleToMole(holeIndex);
-        if (closerRole == 0) _missesA++;
-        else if (closerRole == 1) _missesB++;
+        if (hole < 0 || seq <= 0) return;
 
-        EmitResolve(type: 2, byRole: -1, holeIndex: holeIndex, seq: seq, atHostMs: now, byClientId: -1);
+        if (now < slotStartMs) return;
+        if (now <= slotEndMs) return;
 
-        _lastResolvedSeq = seq;
-        ScheduleNextFrom(now);
+        if (_lastMissSeqBySlot[slot] == seq || _lastResolvedSeqBySlot[slot] == seq) return;
+
+        _lastMissSeqBySlot[slot] = seq;
+
+        if (slotKind == MoleKind.SharedBig)
+        {
+            if (bigStage == 0) _bigMiss++;
+            else if (bigStage == 1) _bigOneHitOnly++;
+
+            _lastResolvedSeqBySlot[slot] = seq;
+            ScheduleNextFromSlot(slot, now, avoid: null, forceSoon: false);
+            return;
+        }
+
+        if (slotKind == MoleKind.TeacherSmall) _missTeacherMoles++;
+        else if (slotKind == MoleKind.StudentSmall) _missStudentMoles++;
+        else _missSharedMoles++;
+
+        _lastResolvedSeqBySlot[slot] = seq;
+        ScheduleNextFromSlot(slot, now, avoid: null, forceSoon: false);
     }
 
-    private void ScheduleNextFrom(int now)
-    {
-        int delayMs = Mathf.RoundToInt(RandomRangeSeconds(spawnMin, spawnMax) * 1000f);
-        int holdMs  = Mathf.RoundToInt(RandomRangeSeconds(holdMin,  holdMax)  * 1000f);
-
-        int nextStart = now + Mathf.Max(leadTimeMs, delayMs);
-        int nextEnd   = nextStart + holdMs;
-
-        int nextHole = PickRandomHoleIndex();
-        int nextSeq  = _gs.CurrentSeq + 1;
-
-        _gs.AuthorityScheduleMole(nextSeq, nextHole, nextStart, nextEnd);
-    }
-
-    private void EmitResolve(int type, int byRole, int holeIndex, int seq, int atHostMs, int byClientId)
-    {
-        _gs.AuthorityEmitResolve(seq, holeIndex, type, byRole, atHostMs, byClientId);
-    }
-
-
-
-    // ---------------- Hit intake ----------------
-
+    // ---------------------------
+    // Hit intake
+    // ---------------------------
     private void RefreshInputs()
     {
         var inputs = FindObjectsOfType<WhackPlayerInput>(true);
@@ -519,6 +567,53 @@ public class WhackGameController : MonoBehaviour
         }
     }
 
+    private int OwnerToRole(int ownerId)
+    {
+        if (RoleManager.Instance == null) return 0;
+        if (RoleManager.Instance.IsSolo()) return 0;
+
+        int teacher = RoleManager.Instance.GetTeacherID();
+        int student = RoleManager.Instance.GetStudentID();
+
+        if (ownerId == teacher) return 0;
+        if (ownerId == student) return 1;
+        return 0;
+    }
+
+    private bool IsCorrectHit(MoleKind kind, int byRole)
+    {
+        if (kind == MoleKind.SharedSmall || kind == MoleKind.SharedBig) return true;
+        if (kind == MoleKind.TeacherSmall) return byRole == 0;
+        if (kind == MoleKind.StudentSmall) return byRole == 1;
+        return true;
+    }
+
+    private bool AnySharedActiveNow(int hostNow)
+    {
+        int slots = _gs.ActiveSlotCount;
+        const int graceMs = 60;
+
+        for (int s = 0; s < slots; s++)
+        {
+            if (!_gs.TryGetSlot(s,
+                out int seq, out int hole,
+                out int slotStartMs, out int slotEndMs,
+                out MoleKind slotKind,
+                out int bigStage, out int firstRole))
+                continue;
+
+            if (hole < 0) continue;
+
+            bool inWindow = hostNow >= (slotStartMs - graceMs) && hostNow <= (slotEndMs + graceMs);
+            if (!inWindow) continue;
+
+            if (slotKind == MoleKind.SharedSmall || slotKind == MoleKind.SharedBig)
+                return true;
+        }
+
+        return false;
+    }
+
     private void OnHitEventReceived(WhackPlayerInput sender, WhackPlayerInput.HitEvent e)
     {
         if (!_isAuthority) return;
@@ -527,20 +622,26 @@ public class WhackGameController : MonoBehaviour
         int state = _gs.GameState;
         if (state != 1 && state != 2) return;
 
-        int curHole = _gs.CurrentHoleIndex;
-        int curSeq = _gs.CurrentSeq;
+        int slot = Mathf.Clamp(e.slotIndex, 0, 2);
 
-        if (e.holeIndex != curHole) return;
-        if (e.seq != curSeq) return;
+        if (!_gs.TryGetSlot(slot,
+            out int seq, out int hole,
+            out int slotStartMs, out int slotEndMs,
+            out MoleKind slotKind,
+            out int bigStage, out int bigFirstRole))
+            return;
+
+        if (e.seq != seq) return;
+        if (e.holeIndex != hole) return;
 
         int byClientId = sender.OwnerClientIdInHierarchy;
         int byRole = OwnerToRole(byClientId);
 
-        if (_lastAcceptedSeqByClient.TryGetValue(byClientId, out int lastSeq) && lastSeq == curSeq)
+        if (_lastAcceptedSeqByClient.TryGetValue(byClientId, out int lastSeq) && lastSeq == seq)
             return;
-        _lastAcceptedSeqByClient[byClientId] = curSeq;
+        _lastAcceptedSeqByClient[byClientId] = seq;
 
-        if (_lastResolvedSeq == curSeq)
+        if (_lastResolvedSeqBySlot[slot] == seq)
             return;
 
         int now = HostNowMsLocal();
@@ -548,33 +649,86 @@ public class WhackGameController : MonoBehaviour
         if (state == 1)
         {
             StartRunningFromFirstHit(now);
-
-            EmitResolve(type: 1, byRole: byRole, holeIndex: curHole, seq: curSeq, atHostMs: now, byClientId: byClientId);
-            _lastResolvedSeq = curSeq;
-
-            ScheduleNextFrom(now);
-            return;
+            // fall through to process the hit
         }
 
         const int windowGraceMs = 90;
-        if (now < _gs.MoleStartMs - windowGraceMs || now > _gs.MoleEndMs + windowGraceMs)
+        if (state == 2)
+        {
+            if (now < slotStartMs - windowGraceMs || now > slotEndMs + windowGraceMs)
+                return;
+        }
+
+        // BIG mole logic
+        if (slotKind == MoleKind.SharedBig)
+        {
+            if (bigStage == 0)
+            {
+                int deadline = now + Mathf.RoundToInt(bigSecondWindowSeconds * 1000f);
+
+                _gs.AuthorityScheduleSlot(
+                    slot, seq, hole,
+                    slotStartMs, deadline,
+                    slotKind,
+                    bigStage: 1,
+                    bigFirstRole: byRole
+                );
+
+                _gs.AuthorityEmitResolve(seq, hole, slot, type: 1, byRole: byRole, atHostMs: now, byClientId: byClientId,
+                    kind: ResolveKind.BigFirst, moleKind: slotKind);
+
+                return;
+            }
+            else if (bigStage == 1)
+            {
+                if (bigFirstRole == byRole) return;
+
+                _bigComplete++;
+                _lastResolvedSeqBySlot[slot] = seq;
+
+                _gs.AuthorityEmitResolve(seq, hole, slot, type: 1, byRole: byRole, atHostMs: now, byClientId: byClientId,
+                    kind: ResolveKind.BigComplete, moleKind: slotKind);
+
+                ScheduleNextFromSlot(slot, now, avoid: null, forceSoon: false);
+                return;
+            }
+
             return;
+        }
 
-        if (byRole == 0) _hitsA++;
-        else if (byRole == 1) _hitsB++;
+        // NORMAL mole hit
+        bool correct = IsCorrectHit(slotKind, byRole);
 
-        int closerRole = GetCloserRoleToMole(curHole);
-        if (byRole == 0 && closerRole == 1) _crossHitAonB++;
-        if (byRole == 1 && closerRole == 0) _crossHitBonA++;
+        if (slotKind == MoleKind.SharedSmall)
+        {
+            if (byRole == 0) _sharedHitsByTeacher++;
+            else _sharedHitsByStudent++;
+        }
 
-        EmitResolve(type: 1, byRole: byRole, holeIndex: curHole, seq: curSeq, atHostMs: now, byClientId: byClientId);
-        _lastResolvedSeq = curSeq;
+        if (correct)
+        {
+            if (byRole == 0) _teacherCorrect++;
+            else _studentCorrect++;
 
-        ScheduleNextFrom(now);
+            _gs.AuthorityEmitResolve(seq, hole, slot, type: 1, byRole: byRole, atHostMs: now, byClientId: byClientId,
+                kind: ResolveKind.HitCorrect, moleKind: slotKind);
+        }
+        else
+        {
+            if (byRole == 0) _teacherWrong++;
+            else _studentWrong++;
+
+            _gs.AuthorityEmitResolve(seq, hole, slot, type: 1, byRole: byRole, atHostMs: now, byClientId: byClientId,
+                kind: ResolveKind.HitWrong, moleKind: slotKind);
+        }
+
+        _lastResolvedSeqBySlot[slot] = seq;
+        ScheduleNextFromSlot(slot, now, avoid: null, forceSoon: false);
     }
 
-    // ---------------- Resolve FX ----------------
-
+    // ---------------------------
+    // Resolve FX (remote playback)
+    // ---------------------------
     private void OnResolveEvent(WhackGameStateSync.ResolveInfo info)
     {
         if (info.eventId <= 0) return;
@@ -591,44 +745,130 @@ public class WhackGameController : MonoBehaviour
 
         if (info.type != 1) return;
 
-        // suppress echo for local hitter
         if (_realtime != null && info.byClientId == _realtime.clientID) return;
 
         if (_molesByIndex.TryGetValue(info.holeIndex, out MoleVisual m) && m != null)
-            m.PlayHitFx(isLocalHitter: false);
+            m.PlayHitFx(info.kind);
     }
 
-    private void ClearSeenResolveIds()
-    {
-        _seenResolveIds.Clear();
-        _seenResolveQueue.Clear();
-    }
-
-    // ---------------- Utilities ----------------
-
-    private int GetDesiredAuthorityClientId()
-    {
-        if (RoleManager.Instance == null) return 0;
-
-        // If roles not ready and not solo, do not fight ownership yet.
-        if (!RoleManager.Instance.IsDyadReady() && !RoleManager.Instance.IsSolo())
-            return _stateView != null && _stateView.ownerIDInHierarchy >= 0 ? _stateView.ownerIDInHierarchy : 0;
-
-        if (RoleManager.Instance.IsSolo())
-            return _realtime != null ? _realtime.clientID : 0;
-
-        int teacher = RoleManager.Instance.GetTeacherID();
-        return (teacher >= 0) ? teacher : 0;
-    }
-
-    private int HostNowMsLocal() => Mathf.RoundToInt(Time.realtimeSinceStartup * 1000f);
-
+    // ---------------------------
+    // Scheduling
+    // ---------------------------
     private float RandomRangeSeconds(float a, float b)
     {
         if (_rng == null) _rng = new System.Random(12345);
         return Mathf.Lerp(a, b, (float)_rng.NextDouble());
     }
 
+    private int NextSeq() { _globalSeqCounter++; return _globalSeqCounter; }
+
+    private void ScheduleNextFromSlot(int slot, int now, HashSet<int> avoid, bool forceSoon)
+    {
+        if (_rng == null) _rng = new System.Random(12345);
+
+        // figure currently used holes (avoid duplicates)
+        HashSet<int> used = new HashSet<int>();
+        int slots = Mathf.Clamp(activeMoles, 1, 3);
+
+        for (int s = 0; s < slots; s++)
+        {
+            // FIX: do not use out var names that collide with locals later in this method
+            if (!_gs.TryGetSlot(s,
+                out int curSeq, out int curHole,
+                out int curStartMs, out int curEndMs,
+                out MoleKind curKind,
+                out int curBigStage, out int curFirstRole))
+                continue;
+
+            if (curHole < 0) continue;
+
+            if (now <= curEndMs + 80)
+                used.Add(curHole);
+        }
+
+        if (avoid != null)
+            foreach (var h in avoid) used.Add(h);
+
+        // pick mole kind (balanced)
+        MoleKind newKind = PickBalancedKind();
+
+        // choose hole
+        int holeIndex = PickRandomHoleIndexAvoiding(
+            used,
+            preferCluster: (enableSharedClustering && (newKind == MoleKind.SharedSmall || newKind == MoleKind.SharedBig))
+        );
+
+        // no immediate repeat per slot
+        if (_lastHoleBySlot[slot] >= 0 && holeIndex == _lastHoleBySlot[slot])
+            holeIndex = PickRandomHoleIndexAvoiding(used, preferCluster: false);
+
+        _lastHoleBySlot[slot] = holeIndex;
+
+        // delay
+        float baseDelay = RandomRangeSeconds(spawnMin, spawnMax);
+        if (forceSoon) baseDelay = Mathf.Min(baseDelay, 0.18f);
+
+        int delayMs = Mathf.RoundToInt(baseDelay * 1000f);
+
+        // hold (tier balanced)
+        int holdTier = _holdTierPicker.PickIndex();
+        float hold = SampleHoldFromTier(holdTier);
+        int holdMs = Mathf.RoundToInt(hold * 1000f);
+
+        int newStartMs = now + Mathf.Max(leadTimeMs, delayMs);
+        int newEndMs = newStartMs + holdMs;
+
+        if (newKind == MoleKind.SharedBig)
+        {
+            newEndMs = newStartMs + Mathf.Max(holdMs, Mathf.RoundToInt((bigSecondWindowSeconds + 0.35f) * 1000f));
+        }
+
+        int seqNew = NextSeq();
+
+        _gs.AuthorityScheduleSlot(
+            slot: slot,
+            seq: seqNew,
+            holeIndex: holeIndex,
+            startMs: newStartMs,
+            endMs: newEndMs,
+            kind: newKind,
+            bigStage: 0,
+            bigFirstRole: -1
+        );
+    }
+
+    private float SampleHoldFromTier(int tier)
+    {
+        if (tier == 0) return RandomRangeSeconds(holdLowMin, holdLowMax);
+        if (tier == 1) return RandomRangeSeconds(holdMidMin, holdMidMax);
+        return RandomRangeSeconds(holdHighMin, holdHighMax);
+    }
+
+    private MoleKind PickBalancedKind()
+    {
+        float wT = kindWeights.x;
+        float wS = kindWeights.y;
+        float wSh = kindWeights.z;
+        float wBig = kindWeights.w;
+
+        if (enableConflictBursts && _inBurst)
+        {
+            wSh *= burstSharedWeightMultiplier;
+            wBig *= burstSharedWeightMultiplier;
+        }
+
+        _kindPicker.SetWeights(new float[] { wT, wS, wSh, wBig });
+        int idx = _kindPicker.PickIndex();
+
+        if (idx == 0) return MoleKind.TeacherSmall;
+        if (idx == 1) return MoleKind.StudentSmall;
+        if (idx == 2) return MoleKind.SharedSmall;
+        return MoleKind.SharedBig;
+    }
+
+    // ---------------------------
+    // Hole picking
+    // ---------------------------
     private void CacheMoles()
     {
         _molesByIndex.Clear();
@@ -647,88 +887,104 @@ public class WhackGameController : MonoBehaviour
         }
     }
 
-    private int PickRandomHoleIndex()
+    private int PickRandomHoleIndex(HashSet<int> avoid)
+    {
+        if (_rng == null) _rng = new System.Random(12345);
+
+        var keys = new List<int>(_molesByIndex.Keys);
+        if (keys.Count == 0) return 0;
+
+        if (avoid != null && avoid.Count > 0)
+            keys.RemoveAll(k => avoid.Contains(k));
+
+        if (keys.Count == 0) keys = new List<int>(_molesByIndex.Keys);
+
+        return keys[_rng.Next(keys.Count)];
+    }
+
+    private int PickRandomHoleIndexAvoiding(HashSet<int> avoid, bool preferCluster)
     {
         if (_molesByIndex.Count == 0) return 0;
         if (_rng == null) _rng = new System.Random(12345);
 
-        var keys = new List<int>(_molesByIndex.Keys);
-        return keys[_rng.Next(keys.Count)];
-    }
+        if (!preferCluster || _gs == null || !_gs.IsModelReady())
+            return PickRandomHoleIndex(avoid);
 
-    private int CountUniqueAvatarOwners()
-    {
-        var avatars = GameObject.FindGameObjectsWithTag("PlayerAvatar");
-        HashSet<int> owners = new HashSet<int>();
+        // try cluster near currently active holes
+        List<int> candidateTargets = new List<int>();
+        int slots = Mathf.Clamp(activeMoles, 1, 3);
+        int hostNow = _gs.EstimateHostNowMs();
 
-        foreach (var a in avatars)
+        for (int s = 0; s < slots; s++)
         {
-            if (a == null) continue;
-            var v = a.GetComponent<RealtimeView>();
-            if (v != null && v.ownerIDInHierarchy >= 0)
-                owners.Add(v.ownerIDInHierarchy);
+            if (_gs.TryGetSlot(s,
+                out int seq, out int hole,
+                out int slotStartMs, out int slotEndMs,
+                out MoleKind slotKind,
+                out int bs, out int fr))
+            {
+                if (hole >= 0 && hostNow <= slotEndMs + 80)
+                    candidateTargets.Add(hole);
+            }
         }
-        return owners.Count;
+
+        if (candidateTargets.Count == 0)
+            return PickRandomHoleIndex(avoid);
+
+        List<int> clustered = new List<int>();
+        foreach (var kv in _molesByIndex)
+        {
+            int holeIdx = kv.Key;
+            if (avoid != null && avoid.Contains(holeIdx)) continue;
+
+            Vector3 p = kv.Value.transform.position;
+
+            bool nearAny = false;
+            foreach (int t in candidateTargets)
+            {
+                if (!_molesByIndex.TryGetValue(t, out MoleVisual mv) || mv == null) continue;
+                float d = Vector3.Distance(p, mv.transform.position);
+                if (d <= clusterDistanceMeters) { nearAny = true; break; }
+            }
+
+            if (nearAny) clustered.Add(holeIdx);
+        }
+
+        if (clustered.Count == 0)
+            return PickRandomHoleIndex(avoid);
+
+        return clustered[_rng.Next(clustered.Count)];
     }
 
-    private int OwnerToRole(int ownerId)
+    // ---------------------------
+    // Collision metrics (authority) and local audio
+    // ---------------------------
+    private void UpdateCollisionAudioLocal()
     {
-        if (RoleManager.Instance == null) return 0;
-        if (RoleManager.Instance.IsSolo()) return 0;
+        if (collisionSfx == null) return;
+        if (Time.realtimeSinceStartup - _lastCollisionSfxTime < collisionSfxCooldownSeconds) return;
 
-        int teacher = RoleManager.Instance.GetTeacherID();
-        int student = RoleManager.Instance.GetStudentID();
+        bool newCollision = DetectAnyCollisionEdge(out bool newNearEdge);
 
-        if (ownerId == teacher) return 0;
-        if (ownerId == student) return 1;
-        return 0;
+        if (newCollision)
+        {
+            _lastCollisionSfxTime = Time.realtimeSinceStartup;
+            AudioSource.PlayClipAtPoint(collisionSfx, transform.position, collisionSfxVolume);
+        }
     }
 
-    private int GetCloserRoleToMole(int holeIndex)
+    private bool DetectAnyCollisionEdge(out bool newNearEdge)
     {
-        if (!_molesByIndex.TryGetValue(holeIndex, out MoleVisual mole) || mole == null) return -1;
+        newNearEdge = false;
 
         var a = FindAvatarRigByRole(0);
         var b = FindAvatarRigByRole(1);
+        if (a == null || b == null) return false;
+        if (a.hammerColliders == null || b.hammerColliders == null) return false;
+        if (a.hammerColliders.Count == 0 || b.hammerColliders.Count == 0) return false;
 
-        Vector3 mp = mole.transform.position;
-
-        if (a == null && b == null) return -1;
-        if (a != null && b == null) return 0;
-        if (a == null && b != null) return 1;
-
-        float da = Vector3.Distance(a.GetRolePositionFallback(), mp);
-        float db = Vector3.Distance(b.GetRolePositionFallback(), mp);
-
-        return (da <= db) ? 0 : 1;
-    }
-
-    private AvatarRigRefs FindAvatarRigByRole(int role)
-    {
-        var avatars = GameObject.FindGameObjectsWithTag("PlayerAvatar");
-        foreach (var av in avatars)
-        {
-            if (av == null) continue;
-
-            var rv = av.GetComponent<RealtimeView>();
-            if (rv == null) continue;
-
-            int owner = rv.ownerIDInHierarchy;
-            if (role == 0 && OwnerToRole(owner) == 0) return av.GetComponent<AvatarRigRefs>();
-            if (role == 1 && OwnerToRole(owner) == 1) return av.GetComponent<AvatarRigRefs>();
-        }
-        return null;
-    }
-
-    private void DriveNearCollisionMetrics()
-    {
-        if (_gs.GameState != 2) return;
-
-        var a = FindAvatarRigByRole(0);
-        var b = FindAvatarRigByRole(1);
-        if (a == null || b == null) return;
-        if (a.hammerColliders == null || b.hammerColliders == null) return;
-        if (a.hammerColliders.Count == 0 || b.hammerColliders.Count == 0) return;
+        bool anyNewCollision = false;
+        bool anyNewNear = false;
 
         int idx = 0;
         for (int i = 0; i < a.hammerColliders.Count && i < 2; i++)
@@ -744,15 +1000,81 @@ public class WhackGameController : MonoBehaviour
                 bool nearNow = d <= nearThreshold;
                 bool colNow = d <= collisionThreshold;
 
-                if (nearNow && !_pairNear[idx]) { _pairNear[idx] = true; _nearEvents++; }
-                if (!nearNow && _pairNear[idx]) { _pairNear[idx] = false; }
+                if (countNearEvents)
+                {
+                    if (nearNow && !_pairNear[idx]) { anyNewNear = true; _pairNear[idx] = true; }
+                    if (!nearNow && _pairNear[idx]) { _pairNear[idx] = false; }
+                }
 
-                if (colNow && !_pairCollide[idx]) { _pairCollide[idx] = true; _collisionEvents++; }
+                if (colNow && !_pairCollide[idx]) { anyNewCollision = true; _pairCollide[idx] = true; }
                 if (!colNow && _pairCollide[idx]) { _pairCollide[idx] = false; }
 
                 idx++;
             }
         }
+
+        newNearEdge = anyNewNear;
+        return anyNewCollision;
+    }
+
+    private void DriveNearCollisionMetricsAuthority()
+    {
+        if (_gs.GameState != 2) return;
+
+        bool newCollision = DetectAnyCollisionEdge(out bool newNear);
+
+        if (countNearEvents && newNear) _nearEvents++;
+
+        if (newCollision)
+        {
+            _collisionEvents++;
+
+            int hostNow = _gs.EstimateHostNowMs();
+            bool sharedActive = AnySharedActiveNow(hostNow);
+
+            if (sharedActive) _collisionDuringSharedActive++;
+            else _collisionDuringExclusiveOnly++;
+        }
+    }
+
+    // ---------------------------
+    // Avatar rig lookup helpers
+    // ---------------------------
+    private AvatarRigRefs FindAvatarRigByRole(int role)
+    {
+        var avatars = GameObject.FindGameObjectsWithTag("PlayerAvatar");
+        foreach (var av in avatars)
+        {
+            if (av == null) continue;
+            var rv = av.GetComponent<RealtimeView>();
+            if (rv == null) continue;
+
+            int owner = rv.ownerIDInHierarchy;
+            if (role == 0 && OwnerToRole(owner) == 0) return av.GetComponent<AvatarRigRefs>();
+            if (role == 1 && OwnerToRole(owner) == 1) return av.GetComponent<AvatarRigRefs>();
+        }
+        return null;
+    }
+
+    // ---------------------------
+    // Summary CSV
+    // ---------------------------
+    private float ComputeFinalScore()
+    {
+        float score = 0f;
+
+        score += _teacherCorrect * scoreCorrectHit;
+        score += _studentCorrect * scoreCorrectHit;
+
+        score += _teacherWrong * scoreWrongHit;
+        score += _studentWrong * scoreWrongHit;
+
+        score += _bigComplete * scoreBigComplete;
+
+        if (scoreUsesCollisionPenalty)
+            score += _collisionEvents * scoreCollisionPenalty;
+
+        return score;
     }
 
     private void TryResolveDyadIdFromLocalAvatar()
@@ -792,10 +1114,29 @@ public class WhackGameController : MonoBehaviour
             }
         }
 
+        float finalScore = ComputeFinalScore();
+
         using (var w = new StreamWriter(path, false, Encoding.UTF8))
         {
-            w.WriteLine("DyadID,Condition,HitsA,HitsB,MissesA,MissesB,NearEvents,CollisionEvents,CrossHitAonB,CrossHitBonA");
-            w.WriteLine($"{_dyadId},{_condition},{_hitsA},{_hitsB},{_missesA},{_missesB},{_nearEvents},{_collisionEvents},{_crossHitAonB},{_crossHitBonA}");
+            w.WriteLine(string.Join(",",
+            "DyadID","Condition",
+            "A_Correct","B_Correct","A_Wrong","B_Wrong",
+            "Miss_A_Moles","Miss_B_Moles","Miss_Shared_Moles",
+            "SharedHits_A","SharedHits_B",
+            "Big_Complete","Big_OneHitOnly","Big_Miss",
+            "Near_Events","Collision_Events","Collision_SharedActive","Collision_ExclusiveOnly",
+            "FinalScore"
+        ));
+
+            w.WriteLine(string.Join(",",
+                _dyadId, _condition,
+                _teacherCorrect, _studentCorrect, _teacherWrong, _studentWrong,
+                _missTeacherMoles, _missStudentMoles, _missSharedMoles,
+                _sharedHitsByTeacher, _sharedHitsByStudent,
+                _bigComplete, _bigOneHitOnly, _bigMiss,
+                _nearEvents, _collisionEvents, _collisionDuringSharedActive, _collisionDuringExclusiveOnly,
+                finalScore.ToString("0.###", CultureInfo.InvariantCulture)
+            ));
         }
 
         Log($"Summary written -> {path}");
@@ -805,5 +1146,62 @@ public class WhackGameController : MonoBehaviour
     {
         if (!verboseLogs) return;
         Debug.Log($"[WhackGameController] cid={(_realtime != null ? _realtime.clientID : -1)} {msg}");
+    }
+
+    // ---------------------------
+    // Balanced picker helper
+    // ---------------------------
+    private class BalancedPicker
+    {
+        private float[] _weights;
+        private int[] _counts;
+        private int _total;
+        private System.Random _r;
+
+        public BalancedPicker(float[] weights, int seed)
+        {
+            _r = new System.Random(seed);
+            SetWeights(weights);
+            _counts = new int[_weights.Length];
+            _total = 0;
+        }
+
+        public void SetWeights(float[] w)
+        {
+            _weights = new float[w.Length];
+            Array.Copy(w, _weights, w.Length);
+        }
+
+        public int PickIndex()
+        {
+            int n = _weights.Length;
+
+            float sum = 0f;
+            for (int i = 0; i < n; i++) sum += Mathf.Max(0.0001f, _weights[i]);
+
+            _total++;
+
+            int best = 0;
+            float bestScore = float.NegativeInfinity;
+
+            for (int i = 0; i < n; i++)
+            {
+                float wi = Mathf.Max(0.0001f, _weights[i]) / sum;
+                float expected = _total * wi;
+                float deficit = expected - _counts[i];
+
+                float jitter = (float)_r.NextDouble() * 0.0001f;
+                float score = deficit + jitter;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = i;
+                }
+            }
+
+            _counts[best]++;
+            return best;
+        }
     }
 }
