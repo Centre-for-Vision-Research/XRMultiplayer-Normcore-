@@ -146,6 +146,17 @@ public class WhackGameController : MonoBehaviour
     private BalancedPicker _kindPicker;
     private BalancedPicker _holdTierPicker;
 
+    [Header("Hammer Visuals")]
+    public Material hammerMatA;   // Teacher / Role A
+    public Material hammerMatB;   // Student / Role B
+    public string hammerTag = "Hammer"; // tag used on hammer objects (optional)
+    public bool hammerUseTagSearch = true;
+    public bool hammerAlsoSearchByName = true;
+    private readonly HashSet<int> _styledHammerOwners = new HashSet<int>();
+    private bool _hammerStyleReady = false;
+
+
+
     private string _dyadId = "UnknownDyad";
     private string _condition = "Unknown";
 
@@ -397,6 +408,8 @@ public class WhackGameController : MonoBehaviour
         {
             _nextInputScanTime = Time.time + 0.20f;
             RefreshInputs();
+            // Apply hammer colors after avatars/rigs might have spawned
+            ApplyHammerMaterialsLocal();
         }
 
         if (_gs.GameState == 2) _sessionStarted = true;
@@ -1204,4 +1217,99 @@ public class WhackGameController : MonoBehaviour
             return best;
         }
     }
+
+    // ---------------------------
+    // Hammer visuals
+    // ---------------------------
+
+    private void ApplyHammerMaterialsLocal()
+    {
+        if (RoleManager.Instance == null) return;
+        if (_realtime == null || !_realtime.connected || _realtime.clientID < 0) return;
+
+        var avatars = GameObject.FindGameObjectsWithTag("PlayerAvatar");
+        if (avatars == null || avatars.Length == 0) return;
+
+        bool sawNewOwner = false;
+
+        // Detect if any new avatar (owner) appeared
+        foreach (var av in avatars)
+        {
+            if (av == null) continue;
+            var rv = av.GetComponent<RealtimeView>();
+            if (rv == null) continue;
+
+            int owner = rv.ownerIDInHierarchy;
+            if (owner < 0) continue;
+
+            if (!_styledHammerOwners.Contains(owner))
+            {
+                sawNewOwner = true;
+                break;
+            }
+        }
+
+        // If nothing new and we already styled at least once, skip
+        if (!sawNewOwner && _hammerStyleReady) return;
+
+        int localRole = OwnerToRole(_realtime.clientID); // 0=A, 1=B
+
+        foreach (var av in avatars)
+        {
+            if (av == null) continue;
+
+            var rv = av.GetComponent<RealtimeView>();
+            if (rv == null) continue;
+
+            int owner = rv.ownerIDInHierarchy;
+            if (owner < 0) continue;
+
+            bool isLocal = rv.isOwnedLocallySelf;
+
+            int avatarRole = isLocal ? localRole : (1 - localRole);
+            Material targetMat = (avatarRole == 0) ? hammerMatA : hammerMatB;
+            if (targetMat == null) continue;
+
+            ApplyHammersUnderAvatar(av.transform, targetMat);
+
+            _styledHammerOwners.Add(owner);
+        }
+
+        _hammerStyleReady = (_styledHammerOwners.Count >= 2); // true once both players have appeared
+    }
+
+    private void ApplyHammersUnderAvatar(Transform avatarRoot, Material mat)
+    {
+        // Option 1: Tag-based (recommended if hammer objects have a unique tag)
+        if (hammerUseTagSearch)
+        {
+            var tagged = GameObject.FindGameObjectsWithTag(hammerTag);
+            foreach (var go in tagged)
+            {
+                if (go == null) continue;
+                if (!go.transform.IsChildOf(avatarRoot)) continue;
+                ApplyMaterialToAllRenderers(go.transform, mat);
+            }
+        }
+
+        // Option 2: Fallback: name-based within avatar
+        if (hammerAlsoSearchByName)
+        {
+            var renderers = avatarRoot.GetComponentsInChildren<Renderer>(true);
+            foreach (var r in renderers)
+            {
+                if (r == null) continue;
+                if (r.gameObject.name.IndexOf("hammer", StringComparison.OrdinalIgnoreCase) >= 0)
+                    r.material = mat;
+            }
+        }
+    }
+
+    private void ApplyMaterialToAllRenderers(Transform root, Material mat)
+    {
+        var renderers = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].material = mat;
+    }
+
 }
